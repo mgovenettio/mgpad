@@ -1,6 +1,8 @@
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Documents;
 using Microsoft.Win32;
 
@@ -18,6 +20,7 @@ public partial class MainWindow : Window
     private string? _currentFilePath;
     private DocumentType _currentDocumentType;
     private bool _isDirty;
+    private bool _isLoadingDocument;
 
     public MainWindow()
     {
@@ -68,19 +71,38 @@ public partial class MainWindow : Window
             ? "Untitled"
             : Path.GetFileName(_currentFilePath);
 
-        var dirtyMarker = _isDirty ? "* " : string.Empty;
-        Title = $"MGPad - {dirtyMarker}{fileName}";
+        var dirtyMarker = _isDirty ? "*" : string.Empty;
+        Title = _isDirty ? $"MGPad - {fileName}{dirtyMarker}" : $"MGPad - {fileName}";
     }
 
     private void FileNew_Click(object sender, RoutedEventArgs e)
     {
-        EditorBox.Document = new FlowDocument();
+        if (!ConfirmDiscardUnsavedChanges())
+        {
+            return;
+        }
+
+        _isLoadingDocument = true;
+        try
+        {
+            EditorBox.Document = new FlowDocument();
+        }
+        finally
+        {
+            _isLoadingDocument = false;
+        }
+
         SetCurrentFile(null, DocumentType.RichText);
         MarkClean();
     }
 
     private void FileOpen_Click(object sender, RoutedEventArgs e)
     {
+        if (!ConfirmDiscardUnsavedChanges())
+        {
+            return;
+        }
+
         var dialog = new OpenFileDialog
         {
             Filter = "Text Documents (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|Markdown Files (*.md)|*.md|All files (*.*)|*.*"
@@ -103,38 +125,21 @@ public partial class MainWindow : Window
 
     private void FileSave_Click(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrEmpty(_currentFilePath))
-        {
-            FileSaveAs_Click(sender, e);
-            return;
-        }
-
-        SaveDocumentToFile(_currentFilePath);
+        SaveCurrentDocument();
     }
 
     private void FileSaveAs_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new SaveFileDialog
-        {
-            Filter = "Text Documents (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|Markdown Files (*.md)|*.md|All files (*.*)|*.*",
-            AddExtension = true,
-            DefaultExt = GetExtensionForDocumentType(_currentDocumentType),
-            FilterIndex = GetFilterIndexForDocumentType(_currentDocumentType)
-        };
-
-        if (!string.IsNullOrEmpty(_currentFilePath))
-        {
-            dialog.FileName = Path.GetFileName(_currentFilePath);
-        }
-
-        if (dialog.ShowDialog() == true)
-        {
-            SaveDocumentToFile(dialog.FileName);
-        }
+        SaveDocumentWithDialog();
     }
 
     private void FileExit_Click(object sender, RoutedEventArgs e)
     {
+        if (!ConfirmDiscardUnsavedChanges())
+        {
+            return;
+        }
+
         Close();
     }
 
@@ -163,6 +168,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            _isLoadingDocument = true;
             var documentType = DetermineDocumentType(path);
             EditorBox.Document = new FlowDocument();
             var range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
@@ -185,9 +191,13 @@ public partial class MainWindow : Window
         {
             MessageBox.Show($"Failed to load document: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+        finally
+        {
+            _isLoadingDocument = false;
+        }
     }
 
-    private void SaveDocumentToFile(string path)
+    private bool SaveDocumentToFile(string path)
     {
         try
         {
@@ -206,10 +216,12 @@ public partial class MainWindow : Window
 
             SetCurrentFile(path, documentType);
             MarkClean();
+            return true;
         }
         catch (Exception ex)
         {
             MessageBox.Show($"Failed to save document: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
         }
     }
 
@@ -222,5 +234,77 @@ public partial class MainWindow : Window
             ".md" => DocumentType.Markdown,
             _ => DocumentType.PlainText
         };
+    }
+
+    private bool SaveCurrentDocument()
+    {
+        if (string.IsNullOrEmpty(_currentFilePath))
+        {
+            return SaveDocumentWithDialog();
+        }
+
+        return SaveDocumentToFile(_currentFilePath);
+    }
+
+    private bool SaveDocumentWithDialog()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Filter = "Text Documents (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|Markdown Files (*.md)|*.md|All files (*.*)|*.*",
+            AddExtension = true,
+            DefaultExt = GetExtensionForDocumentType(_currentDocumentType),
+            FilterIndex = GetFilterIndexForDocumentType(_currentDocumentType)
+        };
+
+        if (!string.IsNullOrEmpty(_currentFilePath))
+        {
+            dialog.FileName = Path.GetFileName(_currentFilePath);
+        }
+
+        if (dialog.ShowDialog() == true)
+        {
+            return SaveDocumentToFile(dialog.FileName);
+        }
+
+        return false;
+    }
+
+    private bool ConfirmDiscardUnsavedChanges()
+    {
+        if (!_isDirty)
+        {
+            return true;
+        }
+
+        var result = MessageBox.Show(
+            "You have unsaved changes. Do you want to save them before continuing?",
+            "Unsaved Changes",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Warning);
+
+        return result switch
+        {
+            MessageBoxResult.Yes => SaveCurrentDocument(),
+            MessageBoxResult.No => true,
+            _ => false
+        };
+    }
+
+    private void EditorBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_isLoadingDocument)
+        {
+            return;
+        }
+
+        MarkDirty();
+    }
+
+    private void MainWindow_Closing(object? sender, CancelEventArgs e)
+    {
+        if (!ConfirmDiscardUnsavedChanges())
+        {
+            e.Cancel = true;
+        }
     }
 }

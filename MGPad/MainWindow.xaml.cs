@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Documents;
+using Microsoft.Win32;
 
 namespace MGPad;
 
@@ -80,18 +81,82 @@ public partial class MainWindow : Window
 
     private void FileOpen_Click(object sender, RoutedEventArgs e)
     {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "Text Documents (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|Markdown Files (*.md)|*.md|All files (*.*)|*.*"
+        };
+
+        if (!string.IsNullOrEmpty(_currentFilePath))
+        {
+            var directory = Path.GetDirectoryName(_currentFilePath);
+            if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
+            {
+                dialog.InitialDirectory = directory;
+            }
+        }
+
+        if (dialog.ShowDialog() == true)
+        {
+            LoadDocumentFromFile(dialog.FileName);
+        }
     }
 
     private void FileSave_Click(object sender, RoutedEventArgs e)
     {
+        if (string.IsNullOrEmpty(_currentFilePath))
+        {
+            FileSaveAs_Click(sender, e);
+            return;
+        }
+
+        SaveDocumentToFile(_currentFilePath);
     }
 
     private void FileSaveAs_Click(object sender, RoutedEventArgs e)
     {
+        var dialog = new SaveFileDialog
+        {
+            Filter = "Text Documents (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|Markdown Files (*.md)|*.md|All files (*.*)|*.*",
+            AddExtension = true,
+            DefaultExt = GetExtensionForDocumentType(_currentDocumentType),
+            FilterIndex = GetFilterIndexForDocumentType(_currentDocumentType)
+        };
+
+        if (!string.IsNullOrEmpty(_currentFilePath))
+        {
+            dialog.FileName = Path.GetFileName(_currentFilePath);
+        }
+
+        if (dialog.ShowDialog() == true)
+        {
+            SaveDocumentToFile(dialog.FileName);
+        }
     }
 
     private void FileExit_Click(object sender, RoutedEventArgs e)
     {
+        Close();
+    }
+
+    private static string GetExtensionForDocumentType(DocumentType type)
+    {
+        return type switch
+        {
+            DocumentType.RichText => ".rtf",
+            DocumentType.Markdown => ".md",
+            _ => ".txt"
+        };
+    }
+
+    private static int GetFilterIndexForDocumentType(DocumentType type)
+    {
+        return type switch
+        {
+            DocumentType.PlainText => 1,
+            DocumentType.RichText => 2,
+            DocumentType.Markdown => 3,
+            _ => 1
+        };
     }
 
     private void LoadDocumentFromFile(string path)

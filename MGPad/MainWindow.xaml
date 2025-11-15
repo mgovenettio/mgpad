@@ -3,6 +3,26 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="MGPad" Height="450" Width="800"
         Closing="MainWindow_Closing">
+    <Window.CommandBindings>
+        <CommandBinding Command="ApplicationCommands.Undo"
+                        CanExecute="EditorCommand_CanExecute"
+                        Executed="EditorCommand_Executed" />
+        <CommandBinding Command="ApplicationCommands.Redo"
+                        CanExecute="EditorCommand_CanExecute"
+                        Executed="EditorCommand_Executed" />
+        <CommandBinding Command="ApplicationCommands.Cut"
+                        CanExecute="EditorCommand_CanExecute"
+                        Executed="EditorCommand_Executed" />
+        <CommandBinding Command="ApplicationCommands.Copy"
+                        CanExecute="EditorCommand_CanExecute"
+                        Executed="EditorCommand_Executed" />
+        <CommandBinding Command="ApplicationCommands.Paste"
+                        CanExecute="EditorCommand_CanExecute"
+                        Executed="EditorCommand_Executed" />
+        <CommandBinding Command="ApplicationCommands.SelectAll"
+                        CanExecute="EditorCommand_CanExecute"
+                        Executed="EditorCommand_Executed" />
+    </Window.CommandBindings>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -20,13 +40,21 @@
                 <Separator />
                 <MenuItem Header="E_xit" Click="FileExit_Click" />
             </MenuItem>
-            <MenuItem Header="_Edit" />
+            <MenuItem Header="_Edit">
+                <MenuItem Command="ApplicationCommands.Undo" Header="_Undo" CommandTarget="{Binding ElementName=EditorBox}" />
+                <MenuItem Command="ApplicationCommands.Redo" Header="_Redo" CommandTarget="{Binding ElementName=EditorBox}" />
+                <Separator />
+                <MenuItem Command="ApplicationCommands.Cut" Header="Cu_t" CommandTarget="{Binding ElementName=EditorBox}" />
+                <MenuItem Command="ApplicationCommands.Copy" Header="_Copy" CommandTarget="{Binding ElementName=EditorBox}" />
+                <MenuItem Command="ApplicationCommands.Paste" Header="_Paste" CommandTarget="{Binding ElementName=EditorBox}" />
+                <Separator />
+                <MenuItem Command="ApplicationCommands.SelectAll" Header="Select _All" CommandTarget="{Binding ElementName=EditorBox}" />
+            </MenuItem>
             <MenuItem Header="_View" />
             <MenuItem Header="F_ormat" />
             <MenuItem Header="_Tools" />
             <MenuItem Header="_Help" />
         </Menu>
-
         <ToolBarTray Grid.Row="1">
             <ToolBar>
                 <Button Content="B" />

@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 using Microsoft.Win32;
 
 namespace MGPad;
@@ -306,5 +307,62 @@ public partial class MainWindow : Window
         {
             e.Cancel = true;
         }
+    }
+
+    private void EditorCommand_CanExecute(object sender, CanExecuteRoutedEventArgs e)
+    {
+        if (EditorBox is null)
+        {
+            e.CanExecute = false;
+            return;
+        }
+
+        e.CanExecute = e.Command switch
+        {
+            var command when command == ApplicationCommands.Undo => EditorBox.CanUndo,
+            var command when command == ApplicationCommands.Redo => EditorBox.CanRedo,
+            var command when command == ApplicationCommands.Cut => !EditorBox.Selection.IsEmpty,
+            var command when command == ApplicationCommands.Copy => !EditorBox.Selection.IsEmpty,
+            var command when command == ApplicationCommands.Paste => true,
+            var command when command == ApplicationCommands.SelectAll => true,
+            _ => false
+        };
+
+        e.Handled = true;
+    }
+
+    private void EditorCommand_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (EditorBox is null)
+        {
+            return;
+        }
+
+        if (e.Command == ApplicationCommands.Undo)
+        {
+            EditorBox.Undo();
+        }
+        else if (e.Command == ApplicationCommands.Redo)
+        {
+            EditorBox.Redo();
+        }
+        else if (e.Command == ApplicationCommands.Cut)
+        {
+            EditorBox.Cut();
+        }
+        else if (e.Command == ApplicationCommands.Copy)
+        {
+            EditorBox.Copy();
+        }
+        else if (e.Command == ApplicationCommands.Paste)
+        {
+            EditorBox.Paste();
+        }
+        else if (e.Command == ApplicationCommands.SelectAll)
+        {
+            EditorBox.SelectAll();
+        }
+
+        e.Handled = true;
     }
 }

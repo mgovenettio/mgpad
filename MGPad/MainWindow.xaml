@@ -23,12 +23,22 @@
 
         <ToolBarTray Grid.Row="1">
             <ToolBar>
+                <Button Content="B" />
+                <Button Content="U" />
+                <Button Content="JP/EN" />
+                <Button Content="TS" />
             </ToolBar>
         </ToolBarTray>
 
         <Border Grid.Row="2" BorderThickness="1" BorderBrush="LightGray" />
 
         <StatusBar Grid.Row="3">
+            <StatusBarItem>
+                <TextBlock Text="Untitled" />
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <TextBlock Text="EN" />
+            </StatusBarItem>
         </StatusBar>
     </Grid>
 </Window>

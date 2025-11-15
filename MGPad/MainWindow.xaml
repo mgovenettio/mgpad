@@ -3,5 +3,24 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="MGPad" Height="450" Width="800">
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Menu Grid.Row="0">
+        </Menu>
+
+        <ToolBarTray Grid.Row="1">
+            <ToolBar>
+            </ToolBar>
+        </ToolBarTray>
+
+        <Border Grid.Row="2" BorderThickness="1" BorderBrush="LightGray" />
+
+        <StatusBar Grid.Row="3">
+        </StatusBar>
     </Grid>
 </Window>

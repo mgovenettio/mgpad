@@ -11,6 +11,14 @@
         </Grid.RowDefinitions>
 
         <Menu Grid.Row="0">
+            <MenuItem Header="_File">
+                <MenuItem Header="(placeholder)" />
+            </MenuItem>
+            <MenuItem Header="_Edit" />
+            <MenuItem Header="_View" />
+            <MenuItem Header="F_ormat" />
+            <MenuItem Header="_Tools" />
+            <MenuItem Header="_Help" />
         </Menu>
 
         <ToolBarTray Grid.Row="1">

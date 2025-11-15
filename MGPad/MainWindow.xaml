@@ -30,7 +30,10 @@
             </ToolBar>
         </ToolBarTray>
 
-        <Border Grid.Row="2" BorderThickness="1" BorderBrush="LightGray" />
+        <Border Grid.Row="2" BorderThickness="1" BorderBrush="LightGray" Margin="5" Padding="5">
+            <RichTextBox Name="EditorBox"
+                         VerticalScrollBarVisibility="Auto" />
+        </Border>
 
         <StatusBar Grid.Row="3">
             <StatusBarItem>

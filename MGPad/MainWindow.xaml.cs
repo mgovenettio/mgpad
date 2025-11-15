@@ -68,4 +68,24 @@ public partial class MainWindow : Window
         var dirtyMarker = _isDirty ? "* " : string.Empty;
         Title = $"MGPad - {dirtyMarker}{fileName}";
     }
+
+    private void FileNew_Click(object sender, RoutedEventArgs e)
+    {
+    }
+
+    private void FileOpen_Click(object sender, RoutedEventArgs e)
+    {
+    }
+
+    private void FileSave_Click(object sender, RoutedEventArgs e)
+    {
+    }
+
+    private void FileSaveAs_Click(object sender, RoutedEventArgs e)
+    {
+    }
+
+    private void FileExit_Click(object sender, RoutedEventArgs e)
+    {
+    }
 }

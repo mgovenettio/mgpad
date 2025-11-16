@@ -18,10 +18,13 @@ public enum DocumentType
 
 public partial class MainWindow : Window
 {
+    private const string DefaultLanguageIndicator = "EN";
+
     private string? _currentFilePath;
     private DocumentType _currentDocumentType;
     private bool _isDirty;
     private bool _isLoadingDocument;
+    private bool _allowCloseWithoutPrompt;
 
     public MainWindow()
     {
@@ -68,15 +71,83 @@ public partial class MainWindow : Window
 
     private void UpdateWindowTitle()
     {
-        var fileName = string.IsNullOrEmpty(_currentFilePath)
-            ? "Untitled"
-            : Path.GetFileName(_currentFilePath);
-
+        var fileName = GetDisplayFileName();
         var dirtyMarker = _isDirty ? "*" : string.Empty;
-        Title = _isDirty ? $"MGPad - {fileName}{dirtyMarker}" : $"MGPad - {fileName}";
+        Title = $"MGPad - {fileName}{dirtyMarker}";
+        UpdateStatusBar();
     }
 
-    private void FileNew_Click(object sender, RoutedEventArgs e)
+    private string GetDisplayFileName()
+    {
+        return string.IsNullOrEmpty(_currentFilePath)
+            ? "Untitled"
+            : Path.GetFileName(_currentFilePath);
+    }
+
+    private void UpdateStatusBar()
+    {
+        if (FileNameStatusText is null || LanguageIndicatorText is null)
+        {
+            return;
+        }
+
+        var displayName = GetDisplayFileName();
+        if (_isDirty)
+        {
+            displayName += " *";
+        }
+
+        FileNameStatusText.Text = displayName;
+        LanguageIndicatorText.Text = DefaultLanguageIndicator;
+    }
+
+    private void FileNew_Click(object sender, RoutedEventArgs e) => CreateNewDocument();
+
+    private void FileOpen_Click(object sender, RoutedEventArgs e) => OpenDocumentFromDialog();
+
+    private void FileSave_Click(object sender, RoutedEventArgs e) => SaveCurrentDocument();
+
+    private void FileSaveAs_Click(object sender, RoutedEventArgs e) => SaveDocumentWithDialog();
+
+    private void FileExit_Click(object sender, RoutedEventArgs e) => ExitApplication();
+
+    private void FileCommand_CanExecute(object sender, CanExecuteRoutedEventArgs e)
+    {
+        e.CanExecute = true;
+        e.Handled = true;
+    }
+
+    private void FileNewCommand_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        CreateNewDocument();
+        e.Handled = true;
+    }
+
+    private void FileOpenCommand_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        OpenDocumentFromDialog();
+        e.Handled = true;
+    }
+
+    private void FileSaveCommand_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        SaveCurrentDocument();
+        e.Handled = true;
+    }
+
+    private void FileSaveAsCommand_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        SaveDocumentWithDialog();
+        e.Handled = true;
+    }
+
+    private void FileCloseCommand_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        ExitApplication();
+        e.Handled = true;
+    }
+
+    private void CreateNewDocument()
     {
         if (!ConfirmDiscardUnsavedChanges())
         {
@@ -97,7 +168,7 @@ public partial class MainWindow : Window
         MarkClean();
     }
 
-    private void FileOpen_Click(object sender, RoutedEventArgs e)
+    private void OpenDocumentFromDialog()
     {
         if (!ConfirmDiscardUnsavedChanges())
         {
@@ -124,23 +195,14 @@ public partial class MainWindow : Window
         }
     }
 
-    private void FileSave_Click(object sender, RoutedEventArgs e)
-    {
-        SaveCurrentDocument();
-    }
-
-    private void FileSaveAs_Click(object sender, RoutedEventArgs e)
-    {
-        SaveDocumentWithDialog();
-    }
-
-    private void FileExit_Click(object sender, RoutedEventArgs e)
+    private void ExitApplication()
     {
         if (!ConfirmDiscardUnsavedChanges())
         {
             return;
         }
 
+        _allowCloseWithoutPrompt = true;
         Close();
     }
 
@@ -259,6 +321,12 @@ public partial class MainWindow : Window
 
         if (!string.IsNullOrEmpty(_currentFilePath))
         {
+            var directory = Path.GetDirectoryName(_currentFilePath);
+            if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
+            {
+                dialog.InitialDirectory = directory;
+            }
+
             dialog.FileName = Path.GetFileName(_currentFilePath);
         }
 
@@ -303,6 +371,12 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
+        if (_allowCloseWithoutPrompt)
+        {
+            _allowCloseWithoutPrompt = false;
+            return;
+        }
+
         if (!ConfirmDiscardUnsavedChanges())
         {
             e.Cancel = true;

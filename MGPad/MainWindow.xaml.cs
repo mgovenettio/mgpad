@@ -18,6 +18,14 @@ public enum DocumentType
 
 public partial class MainWindow : Window
 {
+    public static readonly RoutedUICommand ToggleBoldCommand =
+        new RoutedUICommand("ToggleBold", "ToggleBold", typeof(MainWindow),
+            new InputGestureCollection { new KeyGesture(Key.B, ModifierKeys.Control) });
+
+    public static readonly RoutedUICommand ToggleUnderlineCommand =
+        new RoutedUICommand("ToggleUnderline", "ToggleUnderline", typeof(MainWindow),
+            new InputGestureCollection { new KeyGesture(Key.U, ModifierKeys.Control) });
+
     private const string DefaultLanguageIndicator = "EN";
 
     private string? _currentFilePath;
@@ -29,7 +37,35 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        CommandBindings.Add(new CommandBinding(ToggleBoldCommand,
+            (s, e) =>
+            {
+                if (!CanFormat())
+                {
+                    e.Handled = true;
+                    return;
+                }
+
+                ToggleBold();
+                MarkDirty();
+                e.Handled = true;
+            }));
+
+        CommandBindings.Add(new CommandBinding(ToggleUnderlineCommand,
+            (s, e) =>
+            {
+                if (!CanFormat())
+                {
+                    e.Handled = true;
+                    return;
+                }
+
+                ToggleUnderline();
+                MarkDirty();
+                e.Handled = true;
+            }));
         InitializeDocumentState();
+        UpdateFormattingControls();
     }
 
     private void InitializeDocumentState()
@@ -166,6 +202,7 @@ public partial class MainWindow : Window
 
         SetCurrentFile(null, DocumentType.RichText);
         MarkClean();
+        UpdateFormattingControls();
     }
 
     private void OpenDocumentFromDialog()
@@ -248,6 +285,7 @@ public partial class MainWindow : Window
             }
 
             SetCurrentFile(path, documentType);
+            UpdateFormattingControls();
             MarkClean();
         }
         catch (Exception ex)
@@ -278,6 +316,7 @@ public partial class MainWindow : Window
             }
 
             SetCurrentFile(path, documentType);
+            UpdateFormattingControls();
             MarkClean();
             return true;
         }
@@ -442,7 +481,7 @@ public partial class MainWindow : Window
 
     private void ToggleBold()
     {
-        if (EditorBox == null)
+        if (EditorBox == null || !CanFormat())
             return;
 
         TextSelection selection = EditorBox.Selection;
@@ -460,7 +499,7 @@ public partial class MainWindow : Window
 
     private void ToggleUnderline()
     {
-        if (EditorBox == null)
+        if (EditorBox == null || !CanFormat())
             return;
 
         TextSelection selection = EditorBox.Selection;
@@ -483,13 +522,34 @@ public partial class MainWindow : Window
 
     private void BoldButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!CanFormat())
+            return;
+
         ToggleBold();
         MarkDirty();
     }
 
     private void UnderlineButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!CanFormat())
+            return;
+
         ToggleUnderline();
         MarkDirty();
+    }
+
+    private bool CanFormat()
+    {
+        return _currentDocumentType == DocumentType.RichText;
+    }
+
+    private void UpdateFormattingControls()
+    {
+        bool canFormat = CanFormat();
+
+        if (BoldButton != null)
+            BoldButton.IsEnabled = canFormat;
+        if (UnderlineButton != null)
+            UnderlineButton.IsEnabled = canFormat;
     }
 }

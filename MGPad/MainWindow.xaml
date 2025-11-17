@@ -1,6 +1,7 @@
 <Window x:Class="MGPad.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:MGPad"
         Title="MGPad"
         Height="450"
         Width="800"
@@ -9,6 +10,8 @@
         <KeyBinding Command="ApplicationCommands.SaveAs"
                     Key="S"
                     Modifiers="Control,Shift" />
+        <KeyBinding Modifiers="Control" Key="B" Command="{x:Static local:MainWindow.ToggleBoldCommand}" />
+        <KeyBinding Modifiers="Control" Key="U" Command="{x:Static local:MainWindow.ToggleUnderlineCommand}" />
     </Window.InputBindings>
     <Window.CommandBindings>
         <CommandBinding Command="ApplicationCommands.New"

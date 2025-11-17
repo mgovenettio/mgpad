@@ -440,13 +440,56 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    private void ToggleBold()
+    {
+        if (EditorBox == null)
+            return;
+
+        TextSelection selection = EditorBox.Selection;
+        object currentWeight = selection.GetPropertyValue(Inline.FontWeightProperty);
+
+        if (currentWeight != DependencyProperty.UnsetValue && currentWeight.Equals(FontWeights.Bold))
+        {
+            selection.ApplyPropertyValue(Inline.FontWeightProperty, FontWeights.Normal);
+        }
+        else
+        {
+            selection.ApplyPropertyValue(Inline.FontWeightProperty, FontWeights.Bold);
+        }
+    }
+
+    private void ToggleUnderline()
+    {
+        if (EditorBox == null)
+            return;
+
+        TextSelection selection = EditorBox.Selection;
+        object currentDecorations = selection.GetPropertyValue(Inline.TextDecorationsProperty);
+
+        var current = currentDecorations as TextDecorationCollection;
+        bool isUnderlined = current != null && current.Contains(TextDecorations.Underline[0]);
+
+        if (isUnderlined)
+        {
+            // Remove underline
+            selection.ApplyPropertyValue(Inline.TextDecorationsProperty, null);
+        }
+        else
+        {
+            // Apply underline
+            selection.ApplyPropertyValue(Inline.TextDecorationsProperty, TextDecorations.Underline);
+        }
+    }
+
     private void BoldButton_Click(object sender, RoutedEventArgs e)
     {
-        // TODO: implement toggle bold
+        ToggleBold();
+        MarkDirty();
     }
 
     private void UnderlineButton_Click(object sender, RoutedEventArgs e)
     {
-        // TODO: implement toggle underline
+        ToggleUnderline();
+        MarkDirty();
     }
 }

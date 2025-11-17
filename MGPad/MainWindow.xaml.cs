@@ -439,4 +439,14 @@ public partial class MainWindow : Window
 
         e.Handled = true;
     }
+
+    private void BoldButton_Click(object sender, RoutedEventArgs e)
+    {
+        // TODO: implement toggle bold
+    }
+
+    private void UnderlineButton_Click(object sender, RoutedEventArgs e)
+    {
+        // TODO: implement toggle underline
+    }
 }

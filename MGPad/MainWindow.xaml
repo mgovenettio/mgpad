@@ -79,8 +79,8 @@
         </Menu>
         <ToolBarTray Grid.Row="1">
             <ToolBar>
-                <Button Content="B" />
-                <Button Content="U" />
+                <Button x:Name="BoldButton" Content="B" Click="BoldButton_Click" />
+                <Button x:Name="UnderlineButton" Content="U" Click="UnderlineButton_Click" />
                 <Button Content="JP/EN" />
                 <Button Content="TS" />
             </ToolBar>

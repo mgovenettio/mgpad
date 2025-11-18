@@ -97,10 +97,10 @@
 
         <StatusBar Grid.Row="3">
             <StatusBarItem>
-                <TextBlock x:Name="FileNameStatusText" Text="Untitled" />
+                <TextBlock x:Name="FileNameTextBlock" Text="Untitled" />
             </StatusBarItem>
-            <StatusBarItem DockPanel.Dock="Right" HorizontalContentAlignment="Right">
-                <TextBlock x:Name="LanguageIndicatorText" Text="EN" />
+            <StatusBarItem HorizontalAlignment="Right">
+                <TextBlock x:Name="LanguageIndicatorTextBlock" Text="EN" />
             </StatusBarItem>
         </StatusBar>
     </Grid>

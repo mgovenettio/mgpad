@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.IO;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -25,8 +26,6 @@ public partial class MainWindow : Window
     public static readonly RoutedUICommand ToggleUnderlineCommand =
         new RoutedUICommand("ToggleUnderline", "ToggleUnderline", typeof(MainWindow),
             new InputGestureCollection { new KeyGesture(Key.U, ModifierKeys.Control) });
-
-    private const string DefaultLanguageIndicator = "EN";
 
     private string? _currentFilePath;
     private DocumentType _currentDocumentType;
@@ -66,6 +65,7 @@ public partial class MainWindow : Window
             }));
         InitializeDocumentState();
         UpdateFormattingControls();
+        UpdateLanguageIndicator();
     }
 
     private void InitializeDocumentState()
@@ -122,7 +122,7 @@ public partial class MainWindow : Window
 
     private void UpdateStatusBar()
     {
-        if (FileNameStatusText is null || LanguageIndicatorText is null)
+        if (FileNameTextBlock is null)
         {
             return;
         }
@@ -133,8 +133,35 @@ public partial class MainWindow : Window
             displayName += " *";
         }
 
-        FileNameStatusText.Text = displayName;
-        LanguageIndicatorText.Text = DefaultLanguageIndicator;
+        FileNameTextBlock.Text = displayName;
+        UpdateLanguageIndicator();
+    }
+
+    private void UpdateLanguageIndicator()
+    {
+        var current = InputLanguageManager.Current.CurrentInputLanguage;
+        if (LanguageIndicatorTextBlock == null || current == null)
+        {
+            return;
+        }
+
+        string twoLetter = current.TwoLetterISOLanguageName.ToLowerInvariant();
+        string code;
+
+        switch (twoLetter)
+        {
+            case "en":
+                code = "EN";
+                break;
+            case "ja":
+                code = "JP";
+                break;
+            default:
+                code = twoLetter.ToUpperInvariant();
+                break;
+        }
+
+        LanguageIndicatorTextBlock.Text = code;
     }
 
     private void FileNew_Click(object sender, RoutedEventArgs e) => CreateNewDocument();

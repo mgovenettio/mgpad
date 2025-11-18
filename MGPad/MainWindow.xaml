@@ -84,7 +84,9 @@
             <ToolBar>
                 <Button x:Name="BoldButton" Content="B" Click="BoldButton_Click" />
                 <Button x:Name="UnderlineButton" Content="U" Click="UnderlineButton_Click" />
-                <Button Content="JP/EN" />
+                <Button x:Name="ToggleLanguageButton"
+                        Content="JP/EN"
+                        Click="ToggleLanguageButton_Click" />
                 <Button Content="TS" />
             </ToolBar>
         </ToolBarTray>

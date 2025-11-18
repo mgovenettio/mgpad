@@ -32,6 +32,8 @@ public partial class MainWindow : Window
     private bool _isDirty;
     private bool _isLoadingDocument;
     private bool _allowCloseWithoutPrompt;
+    private CultureInfo? _englishInputLanguage;
+    private CultureInfo? _japaneseInputLanguage;
 
     public MainWindow()
     {
@@ -63,9 +65,36 @@ public partial class MainWindow : Window
                 MarkDirty();
                 e.Handled = true;
             }));
+        InitializePreferredInputLanguages();
         InitializeDocumentState();
         UpdateFormattingControls();
         UpdateLanguageIndicator();
+    }
+
+    private void InitializePreferredInputLanguages()
+    {
+        _englishInputLanguage = null;
+        _japaneseInputLanguage = null;
+
+        var available = InputLanguageManager.Current.AvailableInputLanguages;
+        if (available == null)
+            return;
+
+        foreach (var langObj in available)
+        {
+            if (langObj is CultureInfo ci)
+            {
+                string twoLetter = ci.TwoLetterISOLanguageName.ToLowerInvariant();
+                if (twoLetter == "en" && _englishInputLanguage == null)
+                {
+                    _englishInputLanguage = ci;
+                }
+                else if (twoLetter == "ja" && _japaneseInputLanguage == null)
+                {
+                    _japaneseInputLanguage = ci;
+                }
+            }
+        }
     }
 
     private void InitializeDocumentState()
@@ -162,6 +191,44 @@ public partial class MainWindow : Window
         }
 
         LanguageIndicatorTextBlock.Text = code;
+    }
+
+    private void ToggleLanguageButton_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleInputLanguage();
+    }
+
+    private void ToggleInputLanguage()
+    {
+        var current = InputLanguageManager.Current.CurrentInputLanguage;
+
+        if (_englishInputLanguage == null || _japaneseInputLanguage == null || current == null)
+        {
+            // If we don't have both languages, just update the indicator and return
+            UpdateLanguageIndicator();
+            return;
+        }
+
+        // Decide which language to switch to
+        CultureInfo target;
+        string currentTwo = current.TwoLetterISOLanguageName.ToLowerInvariant();
+
+        if (currentTwo == "ja")
+        {
+            target = _englishInputLanguage;
+        }
+        else if (currentTwo == "en")
+        {
+            target = _japaneseInputLanguage;
+        }
+        else
+        {
+            // If current isn't EN or JA, default to EN
+            target = _englishInputLanguage;
+        }
+
+        InputLanguageManager.Current.CurrentInputLanguage = target;
+        UpdateLanguageIndicator();
     }
 
     private void FileNew_Click(object sender, RoutedEventArgs e) => CreateNewDocument();

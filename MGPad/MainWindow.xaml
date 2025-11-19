@@ -12,6 +12,9 @@
                     Modifiers="Control,Shift" />
         <KeyBinding Modifiers="Control" Key="B" Command="{x:Static local:MainWindow.ToggleBoldCommand}" />
         <KeyBinding Modifiers="Control" Key="U" Command="{x:Static local:MainWindow.ToggleUnderlineCommand}" />
+        <KeyBinding Command="{x:Static local:MainWindow.ToggleInputLanguageCommand}"
+                    Modifiers="Control"
+                    Key="J" />
     </Window.InputBindings>
     <Window.CommandBindings>
         <CommandBinding Command="ApplicationCommands.New"

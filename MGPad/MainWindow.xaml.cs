@@ -27,6 +27,10 @@ public partial class MainWindow : Window
         new RoutedUICommand("ToggleUnderline", "ToggleUnderline", typeof(MainWindow),
             new InputGestureCollection { new KeyGesture(Key.U, ModifierKeys.Control) });
 
+    public static readonly RoutedUICommand ToggleInputLanguageCommand =
+        new RoutedUICommand("ToggleInputLanguage", "ToggleInputLanguage", typeof(MainWindow),
+            new InputGestureCollection { new KeyGesture(Key.J, ModifierKeys.Control) });
+
     private string? _currentFilePath;
     private DocumentType _currentDocumentType;
     private bool _isDirty;
@@ -65,7 +69,22 @@ public partial class MainWindow : Window
                 MarkDirty();
                 e.Handled = true;
             }));
+        CommandBindings.Add(new CommandBinding(
+            ToggleInputLanguageCommand,
+            (s, e) => ToggleInputLanguage()));
         InitializePreferredInputLanguages();
+
+        if (_englishInputLanguage == null || _japaneseInputLanguage == null)
+        {
+            if (ToggleLanguageButton != null)
+                ToggleLanguageButton.IsEnabled = false;
+        }
+        else
+        {
+            if (ToggleLanguageButton != null)
+                ToggleLanguageButton.IsEnabled = true;
+        }
+
         InitializeDocumentState();
         UpdateFormattingControls();
         UpdateLanguageIndicator();
@@ -200,11 +219,16 @@ public partial class MainWindow : Window
 
     private void ToggleInputLanguage()
     {
+        if (_englishInputLanguage == null || _japaneseInputLanguage == null)
+        {
+            UpdateLanguageIndicator();
+            return;
+        }
+
         var current = InputLanguageManager.Current.CurrentInputLanguage;
 
-        if (_englishInputLanguage == null || _japaneseInputLanguage == null || current == null)
+        if (current == null)
         {
-            // If we don't have both languages, just update the indicator and return
             UpdateLanguageIndicator();
             return;
         }

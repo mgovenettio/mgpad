@@ -91,8 +91,7 @@ public partial class MainWindow : Window
         UpdateFormattingControls();
         UpdateLanguageIndicator();
 
-        _isMarkdownMode = false;
-        ApplyMarkdownModeLayout();
+        SetMarkdownMode(false);
     }
 
     private void ApplyMarkdownModeLayout()
@@ -114,6 +113,27 @@ public partial class MainWindow : Window
             if (MarkdownPreviewContainer != null)
                 MarkdownPreviewContainer.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private void SetMarkdownMode(bool enable)
+    {
+        _isMarkdownMode = enable;
+
+        if (MarkdownModeMenuItem != null)
+            MarkdownModeMenuItem.IsChecked = enable;
+
+        ApplyMarkdownModeLayout();
+        UpdateMarkdownPreview();
+    }
+
+    private void MarkdownModeMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        bool enable = MarkdownModeMenuItem?.IsChecked ?? false;
+        SetMarkdownMode(enable);
+    }
+
+    private void UpdateMarkdownPreview()
+    {
     }
 
     private void InitializePreferredInputLanguages()

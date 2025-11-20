@@ -78,7 +78,12 @@
                 <Separator />
                 <MenuItem Command="ApplicationCommands.SelectAll" Header="Select _All" CommandTarget="{Binding ElementName=EditorBox}" />
             </MenuItem>
-            <MenuItem Header="_View" />
+            <MenuItem Header="_View">
+                <MenuItem x:Name="MarkdownModeMenuItem"
+                          Header="_Markdown Mode"
+                          IsCheckable="true"
+                          Click="MarkdownModeMenuItem_Click" />
+            </MenuItem>
             <MenuItem Header="F_ormat" />
             <MenuItem Header="_Tools" />
             <MenuItem Header="_Help" />
@@ -109,10 +114,12 @@
                 <Border Grid.Column="1"
                         x:Name="MarkdownPreviewContainer"
                         Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}">
-                    <TextBlock Text="Markdown preview"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               Opacity="0.5" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <TextBlock x:Name="MarkdownPreviewTextBlock"
+                                   Text="Markdown preview"
+                                   TextWrapping="Wrap"
+                                   Margin="8" />
+                    </ScrollViewer>
                 </Border>
             </Grid>
         </Border>

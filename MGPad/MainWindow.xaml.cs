@@ -36,6 +36,7 @@ public partial class MainWindow : Window
     private bool _isDirty;
     private bool _isLoadingDocument;
     private bool _allowCloseWithoutPrompt;
+    private bool _isMarkdownMode = false;
     private CultureInfo? _englishInputLanguage;
     private CultureInfo? _japaneseInputLanguage;
 
@@ -89,6 +90,30 @@ public partial class MainWindow : Window
         InitializeDocumentState();
         UpdateFormattingControls();
         UpdateLanguageIndicator();
+
+        _isMarkdownMode = false;
+        ApplyMarkdownModeLayout();
+    }
+
+    private void ApplyMarkdownModeLayout()
+    {
+        if (EditorRegionGrid == null)
+            return;
+
+        if (_isMarkdownMode)
+        {
+            EditorRegionGrid.ColumnDefinitions[0].Width = new GridLength(3, GridUnitType.Star);
+            EditorRegionGrid.ColumnDefinitions[1].Width = new GridLength(2, GridUnitType.Star);
+            if (MarkdownPreviewContainer != null)
+                MarkdownPreviewContainer.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            EditorRegionGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
+            EditorRegionGrid.ColumnDefinitions[1].Width = new GridLength(0);
+            if (MarkdownPreviewContainer != null)
+                MarkdownPreviewContainer.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void InitializePreferredInputLanguages()

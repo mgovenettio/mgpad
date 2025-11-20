@@ -95,9 +95,26 @@
         </ToolBarTray>
 
         <Border Grid.Row="2" BorderThickness="1" BorderBrush="LightGray" Margin="5" Padding="5">
-            <RichTextBox Name="EditorBox"
-                         VerticalScrollBarVisibility="Auto"
-                         TextChanged="EditorBox_TextChanged" />
+            <Grid x:Name="EditorRegionGrid">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="0" />
+                </Grid.ColumnDefinitions>
+
+                <RichTextBox x:Name="EditorBox"
+                             Grid.Column="0"
+                             VerticalScrollBarVisibility="Auto"
+                             TextChanged="EditorBox_TextChanged" />
+
+                <Border Grid.Column="1"
+                        x:Name="MarkdownPreviewContainer"
+                        Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}">
+                    <TextBlock Text="Markdown preview"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Opacity="0.5" />
+                </Border>
+            </Grid>
         </Border>
 
         <StatusBar Grid.Row="3">

@@ -42,6 +42,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InputLanguageManager.Current.InputLanguageChanged += InputLanguageManager_InputLanguageChanged;
         CommandBindings.Add(new CommandBinding(ToggleBoldCommand,
             (s, e) =>
             {
@@ -210,6 +211,11 @@ public partial class MainWindow : Window
         }
 
         LanguageIndicatorTextBlock.Text = code;
+    }
+
+    private void InputLanguageManager_InputLanguageChanged(object? sender, InputLanguageEventArgs e)
+    {
+        UpdateLanguageIndicator();
     }
 
     private void ToggleLanguageButton_Click(object sender, RoutedEventArgs e)
@@ -538,6 +544,12 @@ public partial class MainWindow : Window
         {
             e.Cancel = true;
         }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        InputLanguageManager.Current.InputLanguageChanged -= InputLanguageManager_InputLanguageChanged;
+        base.OnClosed(e);
     }
 
     private void EditorCommand_CanExecute(object sender, CanExecuteRoutedEventArgs e)

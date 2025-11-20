@@ -217,6 +217,28 @@ public partial class MainWindow : Window
         MarkdownPreviewTextBlock.Text = sb.ToString();
     }
 
+    private void SetEditorPlainText(string text)
+    {
+        if (EditorBox == null)
+            return;
+
+        EditorBox.Document = new FlowDocument();
+        var range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
+        range.Text = text;
+    }
+
+    private void LoadRtfIntoEditor(string path)
+    {
+        if (EditorBox == null)
+            return;
+
+        EditorBox.Document = new FlowDocument();
+        var range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
+
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
+        range.Load(stream, DataFormats.Rtf);
+    }
+
     private string GetEditorPlainText()
     {
         if (EditorBox == null)
@@ -538,21 +560,28 @@ public partial class MainWindow : Window
         {
             _isLoadingDocument = true;
             var documentType = DetermineDocumentType(path);
-            EditorBox.Document = new FlowDocument();
-            var range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
-
-            if (documentType == DocumentType.RichText)
+            if (documentType == DocumentType.Markdown)
             {
-                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
-                range.Load(stream, DataFormats.Rtf);
+                _currentDocumentType = DocumentType.Markdown;
+                var text = File.ReadAllText(path);
+                SetEditorPlainText(text);
+                SetMarkdownMode(true);
+            }
+            else if (documentType == DocumentType.RichText)
+            {
+                _currentDocumentType = DocumentType.RichText;
+                LoadRtfIntoEditor(path);
+                SetMarkdownMode(false);
             }
             else
             {
+                _currentDocumentType = DocumentType.PlainText;
                 var text = File.ReadAllText(path);
-                range.Text = text;
+                SetEditorPlainText(text);
+                SetMarkdownMode(false);
             }
 
-            SetCurrentFile(path, documentType);
+            SetCurrentFile(path, _currentDocumentType);
             UpdateFormattingControls();
             MarkClean();
         }
@@ -571,16 +600,27 @@ public partial class MainWindow : Window
         try
         {
             var documentType = DetermineDocumentType(path);
-            var range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
-
             if (documentType == DocumentType.RichText)
             {
-                using var stream = new FileStream(path, FileMode.Create, FileAccess.Write);
-                range.Save(stream, DataFormats.Rtf);
+                if (EditorBox != null)
+                {
+                    var range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
+                    using var stream = new FileStream(path, FileMode.Create, FileAccess.Write);
+                    range.Save(stream, DataFormats.Rtf);
+                }
+                SetMarkdownMode(false);
+            }
+            else if (documentType == DocumentType.Markdown)
+            {
+                var text = GetEditorPlainText();
+                File.WriteAllText(path, text);
+                SetMarkdownMode(true);
             }
             else
             {
-                File.WriteAllText(path, range.Text);
+                var text = GetEditorPlainText();
+                File.WriteAllText(path, text);
+                SetMarkdownMode(false);
             }
 
             SetCurrentFile(path, documentType);

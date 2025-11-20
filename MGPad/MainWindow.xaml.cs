@@ -6,7 +6,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Text;
 using Microsoft.Win32;
+using System.Windows.Threading;
 
 namespace MGPad;
 
@@ -37,12 +39,22 @@ public partial class MainWindow : Window
     private bool _isLoadingDocument;
     private bool _allowCloseWithoutPrompt;
     private bool _isMarkdownMode = false;
+    private readonly DispatcherTimer _markdownPreviewTimer;
     private CultureInfo? _englishInputLanguage;
     private CultureInfo? _japaneseInputLanguage;
 
     public MainWindow()
     {
         InitializeComponent();
+        _markdownPreviewTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(300)
+        };
+        _markdownPreviewTimer.Tick += (s, e) =>
+        {
+            _markdownPreviewTimer.Stop();
+            UpdateMarkdownPreview();
+        };
         InputLanguageManager.Current.InputLanguageChanged += InputLanguageManager_InputLanguageChanged;
         CommandBindings.Add(new CommandBinding(ToggleBoldCommand,
             (s, e) =>
@@ -134,6 +146,93 @@ public partial class MainWindow : Window
 
     private void UpdateMarkdownPreview()
     {
+        if (!_isMarkdownMode || MarkdownPreviewTextBlock == null)
+            return;
+
+        string markdown = GetEditorPlainText();
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            MarkdownPreviewTextBlock.Text = string.Empty;
+            return;
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var sb = new StringBuilder();
+
+        bool inCodeBlock = false;
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine;
+
+            // Detect fenced code block markers
+            if (line.TrimStart().StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                sb.AppendLine(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                sb.AppendLine("    " + line);
+                continue;
+            }
+
+            // Simple headings
+            if (line.StartsWith("# "))
+            {
+                string text = line.Substring(2).Trim();
+                sb.AppendLine(text.ToUpperInvariant());
+                sb.AppendLine(new string('=', Math.Max(text.Length, 3)));
+                sb.AppendLine();
+                continue;
+            }
+            if (line.StartsWith("## "))
+            {
+                string text = line.Substring(3).Trim();
+                sb.AppendLine(text);
+                sb.AppendLine(new string('-', Math.Max(text.Length, 3)));
+                sb.AppendLine();
+                continue;
+            }
+            if (line.StartsWith("### "))
+            {
+                string text = line.Substring(4).Trim();
+                sb.AppendLine("### " + text);
+                continue;
+            }
+
+            // Bullet lists (keep as-is)
+            if (line.TrimStart().StartsWith("- ") || line.TrimStart().StartsWith("* "))
+            {
+                sb.AppendLine(line);
+                continue;
+            }
+
+            // Simple inline emphasis: leave **bold** and *italic* as-is for now
+            sb.AppendLine(line);
+        }
+
+        MarkdownPreviewTextBlock.Text = sb.ToString();
+    }
+
+    private string GetEditorPlainText()
+    {
+        if (EditorBox == null)
+            return string.Empty;
+
+        TextRange range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
+        return range.Text ?? string.Empty;
+    }
+
+    private void ScheduleMarkdownPreviewUpdate()
+    {
+        if (!_isMarkdownMode)
+            return;
+
+        _markdownPreviewTimer.Stop();
+        _markdownPreviewTimer.Start();
     }
 
     private void InitializePreferredInputLanguages()
@@ -575,6 +674,7 @@ public partial class MainWindow : Window
         }
 
         MarkDirty();
+        ScheduleMarkdownPreviewUpdate();
     }
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)

@@ -452,7 +452,39 @@ public partial class MainWindow : Window
 
     private void ExportPdfMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        // TODO: implement PDF export
+        try
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Export as PDF",
+                Filter = "PDF Files (*.pdf)|*.pdf|All Files (*.*)|*.*",
+                DefaultExt = ".pdf",
+                FileName = !string.IsNullOrEmpty(_currentFilePath)
+                    ? Path.GetFileNameWithoutExtension(_currentFilePath) + ".pdf"
+                    : "Document.pdf"
+            };
+
+            bool? result = dialog.ShowDialog(this);
+            if (result != true)
+                return;
+
+            string pdfPath = dialog.FileName;
+            ExportDocumentToPdf(pdfPath);
+
+            MessageBox.Show(this,
+                "PDF export completed:\n" + pdfPath,
+                "Export as PDF",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                "Failed to export PDF.\n\n" + ex.Message,
+                "Export as PDF",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private List<PdfParagraph> ExtractParagraphsForPdf()

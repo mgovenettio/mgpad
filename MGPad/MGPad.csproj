@@ -7,4 +7,8 @@
     <UseWPF>true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PdfSharp" Version="1.50.5147" />
+  </ItemGroup>
 </Project>

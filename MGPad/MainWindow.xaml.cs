@@ -7,8 +7,11 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Text;
+using System.Linq;
 using Microsoft.Win32;
 using System.Windows.Threading;
+using PdfSharp.Drawing;
+using PdfSharp.Pdf;
 
 namespace MGPad;
 
@@ -42,6 +45,18 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _markdownPreviewTimer;
     private CultureInfo? _englishInputLanguage;
     private CultureInfo? _japaneseInputLanguage;
+
+    private sealed class PdfTextRun
+    {
+        public string Text { get; set; } = string.Empty;
+        public bool IsBold { get; set; }
+        public bool IsUnderline { get; set; }
+    }
+
+    private sealed class PdfParagraph
+    {
+        public List<PdfTextRun> Runs { get; } = new();
+    }
 
     public MainWindow()
     {
@@ -438,6 +453,129 @@ public partial class MainWindow : Window
     private void ExportPdfMenuItem_Click(object sender, RoutedEventArgs e)
     {
         // TODO: implement PDF export
+    }
+
+    private List<PdfParagraph> ExtractParagraphsForPdf()
+    {
+        var result = new List<PdfParagraph>();
+
+        if (EditorBox?.Document == null)
+            return result;
+
+        foreach (var block in EditorBox.Document.Blocks)
+        {
+            if (block is Paragraph paragraph)
+            {
+                var pdfParagraph = new PdfParagraph();
+
+                foreach (Inline inline in paragraph.Inlines)
+                {
+                    if (inline is Run run)
+                    {
+                        string text = run.Text;
+                        if (string.IsNullOrEmpty(text))
+                            continue;
+
+                        bool isBold = run.FontWeight == FontWeights.Bold;
+                        bool isUnderline = run.TextDecorations == TextDecorations.Underline;
+
+                        pdfParagraph.Runs.Add(new PdfTextRun
+                        {
+                            Text = text,
+                            IsBold = isBold,
+                            IsUnderline = isUnderline
+                        });
+                    }
+                    else if (inline is LineBreak)
+                    {
+                        // Represent line breaks as separate runs if desired
+                        pdfParagraph.Runs.Add(new PdfTextRun { Text = "\n" });
+                    }
+                }
+
+                // Ignore completely empty paragraphs
+                if (pdfParagraph.Runs.Count > 0)
+                    result.Add(pdfParagraph);
+            }
+            else
+            {
+                // For non-Paragraph blocks (Lists, etc.), you can either ignore or flatten
+                // For now, skip or convert to plain paragraphs later if needed.
+            }
+        }
+
+        return result;
+    }
+
+    private void ExportDocumentToPdf(string pdfPath)
+    {
+        var paragraphs = ExtractParagraphsForPdf();
+
+        var document = new PdfDocument();
+        document.Info.Title = string.IsNullOrEmpty(_currentFilePath)
+            ? "MGPad Document"
+            : Path.GetFileNameWithoutExtension(_currentFilePath);
+
+        PdfPage page = document.AddPage();
+        XGraphics gfx = XGraphics.FromPdfPage(page);
+
+        // Basic fonts
+        XFont regularFont = new XFont("Segoe UI", 12, XFontStyle.Regular);
+        XFont boldFont = new XFont("Segoe UI", 12, XFontStyle.Bold);
+        XFont underlineFont = new XFont("Segoe UI", 12, XFontStyle.Underline);
+        XFont boldUnderlineFont = new XFont("Segoe UI", 12, XFontStyle.Bold | XFontStyle.Underline);
+
+        // Layout: 1-inch margins (72 points per inch)
+        double marginLeft = 72;
+        double marginTop = 72;
+        double marginRight = 72;
+        double marginBottom = 72;
+
+        double y = marginTop;
+        double lineHeight = regularFont.GetHeight(gfx) * 1.4;
+
+        foreach (var paragraph in paragraphs)
+        {
+            // Simple line-based layout: assemble paragraph text and draw line by line
+            string paragraphText = string.Concat(paragraph.Runs.Select(r => r.Text));
+
+            // Split into lines on '\n'
+            string[] lines = paragraphText.Replace("\r\n", "\n").Split('\n');
+
+            foreach (string line in lines)
+            {
+                if (y + lineHeight > page.Height - marginBottom)
+                {
+                    // New page
+                    page = document.AddPage();
+                    gfx = XGraphics.FromPdfPage(page);
+                    y = marginTop;
+                }
+
+                // For simplicity, choose a font based on the first run that has formatting
+                bool anyBold = paragraph.Runs.Any(r => r.IsBold);
+                bool anyUnderline = paragraph.Runs.Any(r => r.IsUnderline);
+
+                XFont fontToUse = regularFont;
+                if (anyBold && anyUnderline)
+                    fontToUse = boldUnderlineFont;
+                else if (anyBold)
+                    fontToUse = boldFont;
+                else if (anyUnderline)
+                    fontToUse = underlineFont;
+
+                gfx.DrawString(line, fontToUse, XBrushes.Black,
+                    new XRect(marginLeft, y, page.Width - marginLeft - marginRight, lineHeight),
+                    XStringFormats.TopLeft);
+
+                y += lineHeight;
+            }
+
+            // Extra space between paragraphs
+            y += lineHeight * 0.5;
+        }
+
+        document.Save(pdfPath);
     }
 
     private void FileExit_Click(object sender, RoutedEventArgs e) => ExitApplication();

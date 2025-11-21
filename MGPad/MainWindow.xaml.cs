@@ -435,6 +435,11 @@ public partial class MainWindow : Window
 
     private void FileSaveAs_Click(object sender, RoutedEventArgs e) => SaveDocumentWithDialog();
 
+    private void ExportPdfMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        // TODO: implement PDF export
+    }
+
     private void FileExit_Click(object sender, RoutedEventArgs e) => ExitApplication();
 
     private void FileCommand_CanExecute(object sender, CanExecuteRoutedEventArgs e)

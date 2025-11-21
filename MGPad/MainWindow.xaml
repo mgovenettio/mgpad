@@ -66,6 +66,10 @@
                 <MenuItem Header="_Save" Click="FileSave_Click" InputGestureText="Ctrl+S" />
                 <MenuItem Header="Save _As..." Click="FileSaveAs_Click" InputGestureText="Ctrl+Shift+S" />
                 <Separator />
+                <MenuItem x:Name="ExportPdfMenuItem"
+                          Header="E_xport as PDF..."
+                          Click="ExportPdfMenuItem_Click" />
+                <Separator />
                 <MenuItem Header="E_xit" Click="FileExit_Click" />
             </MenuItem>
             <MenuItem Header="_Edit">

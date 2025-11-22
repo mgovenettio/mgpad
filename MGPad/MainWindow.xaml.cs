@@ -564,17 +564,29 @@ public partial class MainWindow : Window
         double marginBottom = 72;
 
         double y = marginTop;
-        double lineHeight = regularFont.GetHeight(gfx) * 1.4;
-
         foreach (var paragraph in paragraphs)
         {
             // Simple line-based layout: assemble paragraph text and draw line by line
             string paragraphText = string.Concat(paragraph.Runs.Select(r => r.Text));
 
-            // Split into lines on '\n'
-            string[] lines = paragraphText.Replace("\r\n", "\n").Split('\n');
+            // For simplicity, choose a font based on the first run that has formatting
+            bool anyBold = paragraph.Runs.Any(r => r.IsBold);
+            bool anyUnderline = paragraph.Runs.Any(r => r.IsUnderline);
 
-            foreach (string line in lines)
+            XFont fontToUse = regularFont;
+            if (anyBold && anyUnderline)
+                fontToUse = boldUnderlineFont;
+            else if (anyBold)
+                fontToUse = boldFont;
+            else if (anyUnderline)
+                fontToUse = underlineFont;
+
+            double lineHeight = fontToUse.GetHeight(gfx) * 1.4;
+            double usableWidth = page.Width - marginLeft - marginRight;
+
+            var wrappedLines = WrapText(paragraphText, fontToUse, usableWidth, gfx);
+
+            foreach (string line in wrappedLines)
             {
                 if (y + lineHeight > page.Height - marginBottom)
                 {
@@ -584,20 +596,8 @@ public partial class MainWindow : Window
                     y = marginTop;
                 }
 
-                // For simplicity, choose a font based on the first run that has formatting
-                bool anyBold = paragraph.Runs.Any(r => r.IsBold);
-                bool anyUnderline = paragraph.Runs.Any(r => r.IsUnderline);
-
-                XFont fontToUse = regularFont;
-                if (anyBold && anyUnderline)
-                    fontToUse = boldUnderlineFont;
-                else if (anyBold)
-                    fontToUse = boldFont;
-                else if (anyUnderline)
-                    fontToUse = underlineFont;
-
                 gfx.DrawString(line, fontToUse, XBrushes.Black,
-                    new XRect(marginLeft, y, page.Width - marginLeft - marginRight, lineHeight),
+                    new XRect(marginLeft, y, usableWidth, lineHeight),
                     XStringFormats.TopLeft);
 
                 y += lineHeight;
@@ -608,6 +608,105 @@ public partial class MainWindow : Window
         }
 
         document.Save(pdfPath);
+    }
+
+    private List<string> WrapText(string text, XFont font, double maxWidth, XGraphics gfx)
+    {
+        var wrappedLines = new List<string>();
+        string[] rawLines = text.Replace("\r\n", "\n").Split('\n');
+
+        foreach (string rawLine in rawLines)
+        {
+            if (string.IsNullOrEmpty(rawLine))
+            {
+                wrappedLines.Add(string.Empty);
+                continue;
+            }
+
+            string[] words = rawLine.Split(' ');
+            string currentLine = string.Empty;
+
+            foreach (string word in words)
+            {
+                if (string.IsNullOrEmpty(word))
+                    continue;
+
+                if (string.IsNullOrEmpty(currentLine))
+                {
+                    AddWordOrSplit(word, ref currentLine, wrappedLines, font, maxWidth, gfx);
+                    continue;
+                }
+
+                string candidate = currentLine + " " + word;
+                if (gfx.MeasureString(candidate, font).Width <= maxWidth)
+                {
+                    currentLine = candidate;
+                }
+                else
+                {
+                    wrappedLines.Add(currentLine);
+                    currentLine = string.Empty;
+                    AddWordOrSplit(word, ref currentLine, wrappedLines, font, maxWidth, gfx);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(currentLine))
+            {
+                wrappedLines.Add(currentLine);
+            }
+        }
+
+        return wrappedLines;
+    }
+
+    private void AddWordOrSplit(string word, ref string currentLine, List<string> wrappedLines, XFont font, double maxWidth, XGraphics gfx)
+    {
+        if (gfx.MeasureString(word, font).Width <= maxWidth)
+        {
+            currentLine = word;
+            return;
+        }
+
+        int index = 0;
+        while (index < word.Length)
+        {
+            int length = FindMaxFittingLength(word, index, font, maxWidth, gfx);
+            string segment = word.Substring(index, length);
+
+            if (!string.IsNullOrEmpty(currentLine))
+            {
+                wrappedLines.Add(currentLine);
+            }
+
+            currentLine = segment;
+            index += length;
+        }
+    }
+
+    private int FindMaxFittingLength(string word, int startIndex, XFont font, double maxWidth, XGraphics gfx)
+    {
+        int low = 1;
+        int high = word.Length - startIndex;
+        int result = 1;
+
+        while (low <= high)
+        {
+            int mid = (low + high) / 2;
+            string candidate = word.Substring(startIndex, mid);
+            double width = gfx.MeasureString(candidate, font).Width;
+
+            if (width <= maxWidth)
+            {
+                result = mid;
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return result;
     }
 
     private void FileExit_Click(object sender, RoutedEventArgs e) => ExitApplication();

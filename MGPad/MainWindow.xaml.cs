@@ -10,6 +10,7 @@ using System.Text;
 using System.Linq;
 using Microsoft.Win32;
 using System.Windows.Threading;
+using System.Windows.Media;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 
@@ -46,6 +47,7 @@ public partial class MainWindow : Window
     private bool _isLoadingDocument;
     private bool _allowCloseWithoutPrompt;
     private bool _isMarkdownMode = false;
+    private bool _isNightMode = false;
     private readonly DispatcherTimer _markdownPreviewTimer;
     private CultureInfo? _englishInputLanguage;
     private CultureInfo? _japaneseInputLanguage;
@@ -132,6 +134,7 @@ public partial class MainWindow : Window
         UpdateLanguageIndicator();
 
         SetMarkdownMode(false);
+        ApplyTheme();
     }
 
     private void ApplyMarkdownModeLayout()
@@ -170,6 +173,59 @@ public partial class MainWindow : Window
     {
         bool enable = MarkdownModeMenuItem?.IsChecked ?? false;
         SetMarkdownMode(enable);
+    }
+
+    private void NightModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _isNightMode = !_isNightMode;
+        ApplyTheme();
+    }
+
+    private void ApplyTheme()
+    {
+        Brush windowBackground = _isNightMode
+            ? new SolidColorBrush(Color.FromRgb(30, 30, 30))
+            : Brushes.White;
+        Brush panelBackground = _isNightMode
+            ? new SolidColorBrush(Color.FromRgb(45, 45, 48))
+            : Brushes.WhiteSmoke;
+        Brush borderBrush = _isNightMode
+            ? new SolidColorBrush(Color.FromRgb(62, 62, 66))
+            : Brushes.LightGray;
+        Brush foreground = _isNightMode ? Brushes.WhiteSmoke : Brushes.Black;
+
+        if (RootGrid != null)
+            RootGrid.Background = windowBackground;
+
+        if (EditorBorder != null)
+            EditorBorder.BorderBrush = borderBrush;
+
+        if (EditorBox != null)
+        {
+            EditorBox.Background = panelBackground;
+            EditorBox.Foreground = foreground;
+            EditorBox.BorderBrush = borderBrush;
+            if (EditorBox.Document != null)
+                EditorBox.Document.Foreground = foreground;
+        }
+
+        if (MarkdownPreviewContainer != null)
+        {
+            MarkdownPreviewContainer.Background = panelBackground;
+            MarkdownPreviewContainer.BorderBrush = borderBrush;
+        }
+
+        if (MarkdownPreviewTextBlock != null)
+            MarkdownPreviewTextBlock.Foreground = foreground;
+
+        if (MainStatusBar != null)
+        {
+            MainStatusBar.Background = panelBackground;
+            MainStatusBar.Foreground = foreground;
+        }
+
+        if (NightModeButton != null)
+            NightModeButton.Content = _isNightMode ? "Day" : "Night";
     }
 
     private void UpdateMarkdownPreview()
@@ -253,6 +309,7 @@ public partial class MainWindow : Window
         EditorBox.Document = new FlowDocument();
         var range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
         range.Text = text;
+        ApplyTheme();
     }
 
     private void LoadRtfIntoEditor(string path)
@@ -265,6 +322,7 @@ public partial class MainWindow : Window
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
         range.Load(stream, DataFormats.Rtf);
+        ApplyTheme();
     }
 
     private string GetEditorPlainText()
@@ -993,6 +1051,7 @@ public partial class MainWindow : Window
         SetCurrentFile(null, DocumentType.RichText);
         MarkClean();
         UpdateFormattingControls();
+        ApplyTheme();
     }
 
     private void OpenDocumentFromDialog()

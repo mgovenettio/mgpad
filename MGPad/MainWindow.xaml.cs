@@ -564,7 +564,7 @@ public partial class MainWindow : Window
                     continue;
 
                 bool isBold = run.FontWeight == FontWeights.Bold;
-                bool isUnderline = run.TextDecorations == TextDecorations.Underline;
+                bool isUnderline = run.TextDecorations?.Contains(TextDecorations.Underline[0]) == true;
 
                 pdfParagraph.Runs.Add(new PdfTextRun
                 {

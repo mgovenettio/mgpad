@@ -89,17 +89,24 @@
                           Click="MarkdownModeMenuItem_Click" />
             </MenuItem>
             <MenuItem Header="F_ormat" />
-            <MenuItem Header="_Tools" />
+            <MenuItem Header="_Tools">
+                <MenuItem x:Name="InsertTimestampMenuItem"
+                          Header="_Insert Timestamp"
+                          Click="InsertTimestampMenuItem_Click"
+                          InputGestureText="Ctrl+T" />
+            </MenuItem>
             <MenuItem Header="_Help" />
         </Menu>
         <ToolBarTray Grid.Row="1">
             <ToolBar>
                 <Button x:Name="BoldButton" Content="B" Click="BoldButton_Click" />
                 <Button x:Name="UnderlineButton" Content="U" Click="UnderlineButton_Click" />
+                <Separator />
                 <Button x:Name="ToggleLanguageButton"
                         Content="JP/EN"
                         Click="ToggleLanguageButton_Click" />
-                <Button Content="TS" />
+                <Separator />
+                <Button x:Name="TimestampButton" Content="TS" Click="TimestampButton_Click" />
             </ToolBar>
         </ToolBarTray>
 

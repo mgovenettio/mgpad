@@ -278,6 +278,38 @@ public partial class MainWindow : Window
         _markdownPreviewTimer.Start();
     }
 
+    private void InsertTimestampAtCaret()
+    {
+        if (EditorBox == null)
+            return;
+
+        string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+
+        TextSelection selection = EditorBox.Selection;
+
+        if (!selection.IsEmpty)
+        {
+            selection.Text = timestamp;
+            EditorBox.CaretPosition = selection.End;
+        }
+        else
+        {
+            var caret = EditorBox.CaretPosition;
+
+            if (!caret.IsAtInsertionPosition)
+                caret = caret.GetInsertionPosition(LogicalDirection.Forward);
+
+            selection = new TextRange(caret, caret);
+            selection.Text = timestamp;
+
+            EditorBox.CaretPosition = selection.End;
+        }
+
+        EditorBox.Focus();
+        MarkDirty();
+        ScheduleMarkdownPreviewUpdate();
+    }
+
     private void InitializePreferredInputLanguages()
     {
         _englishInputLanguage = null;
@@ -408,6 +440,16 @@ public partial class MainWindow : Window
     private void ToggleLanguageButton_Click(object sender, RoutedEventArgs e)
     {
         ToggleInputLanguage();
+    }
+
+    private void InsertTimestampMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        InsertTimestampAtCaret();
+    }
+
+    private void TimestampButton_Click(object sender, RoutedEventArgs e)
+    {
+        InsertTimestampAtCaret();
     }
 
     private void ToggleInputLanguage()

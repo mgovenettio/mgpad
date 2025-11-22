@@ -54,7 +54,7 @@
                         CanExecute="EditorCommand_CanExecute"
                         Executed="EditorCommand_Executed" />
     </Window.CommandBindings>
-    <Grid>
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -109,11 +109,15 @@
                         Content="JP/EN"
                         Click="ToggleLanguageButton_Click" />
                 <Separator />
+                <Button x:Name="NightModeButton"
+                        Content="Night"
+                        Click="NightModeButton_Click" />
+                <Separator />
                 <Button x:Name="TimestampButton" Content="TS" Click="TimestampButton_Click" />
             </ToolBar>
         </ToolBarTray>
 
-        <Border Grid.Row="2" BorderThickness="1" BorderBrush="LightGray" Margin="5" Padding="5">
+        <Border x:Name="EditorBorder" Grid.Row="2" BorderThickness="1" BorderBrush="LightGray" Margin="5" Padding="5">
             <Grid x:Name="EditorRegionGrid">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -138,7 +142,7 @@
             </Grid>
         </Border>
 
-        <StatusBar Grid.Row="3">
+        <StatusBar x:Name="MainStatusBar" Grid.Row="3">
             <StatusBarItem>
                 <TextBlock x:Name="FileNameTextBlock" Text="Untitled" />
             </StatusBarItem>

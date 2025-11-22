@@ -36,6 +36,10 @@ public partial class MainWindow : Window
         new RoutedUICommand("ToggleInputLanguage", "ToggleInputLanguage", typeof(MainWindow),
             new InputGestureCollection { new KeyGesture(Key.J, ModifierKeys.Control) });
 
+    public static readonly RoutedUICommand InsertTimestampCommand =
+        new RoutedUICommand("InsertTimestamp", "InsertTimestamp", typeof(MainWindow),
+            new InputGestureCollection { new KeyGesture(Key.T, ModifierKeys.Control) });
+
     private string? _currentFilePath;
     private DocumentType _currentDocumentType;
     private bool _isDirty;
@@ -107,6 +111,9 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(
             ToggleInputLanguageCommand,
             (s, e) => ToggleInputLanguage()));
+        CommandBindings.Add(new CommandBinding(
+            InsertTimestampCommand,
+            (s, e) => InsertTimestampAtCaret()));
         InitializePreferredInputLanguages();
 
         if (_englishInputLanguage == null || _japaneseInputLanguage == null)

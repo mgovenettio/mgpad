@@ -15,6 +15,9 @@
         <KeyBinding Command="{x:Static local:MainWindow.ToggleInputLanguageCommand}"
                     Modifiers="Control"
                     Key="J" />
+        <KeyBinding Command="{x:Static local:MainWindow.InsertTimestampCommand}"
+                    Modifiers="Control"
+                    Key="T" />
     </Window.InputBindings>
     <Window.CommandBindings>
         <CommandBinding Command="ApplicationCommands.New"

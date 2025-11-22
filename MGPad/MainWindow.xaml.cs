@@ -52,12 +52,17 @@ public partial class MainWindow : Window
     private const double MinZoom = 0.5;
     private const double MaxZoom = 3.0;
     private double _zoomLevel = 1.0;
+    private const double MinFontSize = 6;
+    private const double MaxFontSize = 96;
     private const int MaxRecentDocuments = 10;
     private readonly List<string> _recentDocuments = new();
     private readonly string _recentDocumentsFilePath;
     private readonly DispatcherTimer _markdownPreviewTimer;
     private CultureInfo? _englishInputLanguage;
     private CultureInfo? _japaneseInputLanguage;
+    private bool _isUpdatingFontControls;
+    private readonly double[] _defaultFontSizes = new double[]
+        { 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72 };
 
     private sealed class PdfTextRun
     {
@@ -128,6 +133,13 @@ public partial class MainWindow : Window
             InsertTimestampCommand,
             (s, e) => InsertTimestampAtCaret()));
         InitializePreferredInputLanguages();
+
+        PopulateFontControls();
+
+        if (EditorBox != null)
+        {
+            EditorBox.SelectionChanged += EditorBox_SelectionChanged;
+        }
 
         if (_englishInputLanguage == null || _japaneseInputLanguage == null)
         {
@@ -1548,6 +1560,155 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    private void EditorBox_SelectionChanged(object sender, RoutedEventArgs e)
+    {
+        UpdateFontControlsFromSelection();
+    }
+
+    private void PopulateFontControls()
+    {
+        if (FontFamilyComboBox != null)
+        {
+            FontFamilyComboBox.ItemsSource = Fonts.SystemFontFamilies
+                .OrderBy(f => f.Source)
+                .ToList();
+        }
+
+        if (FontSizeComboBox != null)
+        {
+            FontSizeComboBox.ItemsSource = _defaultFontSizes;
+        }
+
+        UpdateFontControlsFromSelection();
+    }
+
+    private void UpdateFontControlsFromSelection()
+    {
+        if (FontFamilyComboBox == null || FontSizeComboBox == null)
+            return;
+
+        _isUpdatingFontControls = true;
+        try
+        {
+            bool canFormat = CanFormat();
+            FontFamilyComboBox.IsEnabled = canFormat;
+            FontSizeComboBox.IsEnabled = canFormat;
+
+            if (!canFormat || EditorBox == null)
+            {
+                FontFamilyComboBox.SelectedItem = null;
+                FontFamilyComboBox.Text = string.Empty;
+                FontSizeComboBox.SelectedItem = null;
+                FontSizeComboBox.Text = string.Empty;
+                return;
+            }
+
+            var selection = EditorBox.Selection;
+            var familyValue = selection.GetPropertyValue(Inline.FontFamilyProperty);
+            if (familyValue is FontFamily family)
+            {
+                var match = FontFamilyComboBox.Items.Cast<FontFamily>()
+                    .FirstOrDefault(f => string.Equals(f.Source, family.Source, StringComparison.OrdinalIgnoreCase));
+                FontFamilyComboBox.SelectedItem = match ?? family;
+                FontFamilyComboBox.Text = family.Source;
+            }
+            else
+            {
+                FontFamilyComboBox.SelectedItem = null;
+                FontFamilyComboBox.Text = string.Empty;
+            }
+
+            var sizeValue = selection.GetPropertyValue(Inline.FontSizeProperty);
+            if (sizeValue is double size)
+            {
+                FontSizeComboBox.Text = size.ToString("0.#");
+                var closest = _defaultFontSizes.FirstOrDefault(s => Math.Abs(s - size) < 0.1);
+                FontSizeComboBox.SelectedItem = closest > 0 ? closest : null;
+            }
+            else
+            {
+                FontSizeComboBox.SelectedItem = null;
+                FontSizeComboBox.Text = string.Empty;
+            }
+        }
+        finally
+        {
+            _isUpdatingFontControls = false;
+        }
+    }
+
+    private void ApplyFontFamily(FontFamily fontFamily)
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        EditorBox.Selection.ApplyPropertyValue(Inline.FontFamilyProperty, fontFamily);
+    }
+
+    private void ApplyFontSize(double fontSize)
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        double clampedSize = Math.Min(MaxFontSize, Math.Max(MinFontSize, fontSize));
+        EditorBox.Selection.ApplyPropertyValue(Inline.FontSizeProperty, clampedSize);
+    }
+
+    private void FontFamilyComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isUpdatingFontControls || !CanFormat())
+            return;
+
+        if (FontFamilyComboBox?.SelectedItem is FontFamily family)
+        {
+            ApplyFontFamily(family);
+            MarkDirty();
+        }
+    }
+
+    private void FontSizeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isUpdatingFontControls || !CanFormat())
+            return;
+
+        if (FontSizeComboBox?.SelectedItem is double size)
+        {
+            ApplyFontSize(size);
+            MarkDirty();
+        }
+    }
+
+    private void FontSizeComboBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        ApplyFontSizeFromTextInput();
+    }
+
+    private void FontSizeComboBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            ApplyFontSizeFromTextInput();
+            e.Handled = true;
+        }
+    }
+
+    private void ApplyFontSizeFromTextInput()
+    {
+        if (_isUpdatingFontControls || !CanFormat() || FontSizeComboBox == null)
+            return;
+
+        if (double.TryParse(FontSizeComboBox.Text, out double size))
+        {
+            ApplyFontSize(size);
+            FontSizeComboBox.Text = Math.Min(MaxFontSize, Math.Max(MinFontSize, size)).ToString("0.#");
+            MarkDirty();
+        }
+        else
+        {
+            UpdateFontControlsFromSelection();
+        }
+    }
+
     private void ToggleBold()
     {
         if (EditorBox == null || !CanFormat())
@@ -1620,5 +1781,7 @@ public partial class MainWindow : Window
             BoldButton.IsEnabled = canFormat;
         if (UnderlineButton != null)
             UnderlineButton.IsEnabled = canFormat;
+
+        UpdateFontControlsFromSelection();
     }
 }

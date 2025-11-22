@@ -52,6 +52,9 @@ public partial class MainWindow : Window
     private const double MinZoom = 0.5;
     private const double MaxZoom = 3.0;
     private double _zoomLevel = 1.0;
+    private const int MaxRecentDocuments = 10;
+    private readonly List<string> _recentDocuments = new();
+    private readonly string _recentDocumentsFilePath;
     private readonly DispatcherTimer _markdownPreviewTimer;
     private CultureInfo? _englishInputLanguage;
     private CultureInfo? _japaneseInputLanguage;
@@ -77,6 +80,10 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _recentDocumentsFilePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MGPad",
+            "recent-documents.txt");
         _markdownPreviewTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(300)
@@ -140,6 +147,8 @@ public partial class MainWindow : Window
         SetMarkdownMode(false);
         ApplyTheme();
         ApplyZoom();
+        LoadRecentDocuments();
+        UpdateRecentDocumentsMenu();
     }
 
     private void ApplyMarkdownModeLayout()
@@ -457,6 +466,10 @@ public partial class MainWindow : Window
     {
         _currentFilePath = path;
         _currentDocumentType = type;
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            AddRecentDocument(path);
+        }
         UpdateWindowTitle();
     }
 
@@ -513,6 +526,113 @@ public partial class MainWindow : Window
 
         FileNameTextBlock.Text = displayName;
         UpdateLanguageIndicator();
+    }
+
+    private void LoadRecentDocuments()
+    {
+        _recentDocuments.Clear();
+
+        try
+        {
+            if (!File.Exists(_recentDocumentsFilePath))
+            {
+                return;
+            }
+
+            foreach (var line in File.ReadAllLines(_recentDocumentsFilePath))
+            {
+                var path = line.Trim();
+                if (string.IsNullOrWhiteSpace(path))
+                    continue;
+
+                if (File.Exists(path) && !_recentDocuments.Any(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase)))
+                {
+                    _recentDocuments.Add(path);
+                    if (_recentDocuments.Count >= MaxRecentDocuments)
+                        break;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore errors loading recent documents to avoid disrupting startup.
+        }
+    }
+
+    private void SaveRecentDocuments()
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(_recentDocumentsFilePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllLines(_recentDocumentsFilePath, _recentDocuments);
+        }
+        catch
+        {
+            // Ignore errors saving recent documents to avoid interrupting the user.
+        }
+    }
+
+    private void UpdateRecentDocumentsMenu()
+    {
+        if (RecentDocumentsMenuItem == null)
+            return;
+
+        RecentDocumentsMenuItem.Items.Clear();
+
+        if (_recentDocuments.Count == 0)
+        {
+            RecentDocumentsMenuItem.Items.Add(new MenuItem
+            {
+                Header = "No recent documents",
+                IsEnabled = false
+            });
+            return;
+        }
+
+        foreach (var path in _recentDocuments)
+        {
+            var item = new MenuItem
+            {
+                Header = $"{Path.GetFileName(path)} ({path})",
+                Tag = path
+            };
+
+            item.Click += RecentDocumentMenuItem_Click;
+            RecentDocumentsMenuItem.Items.Add(item);
+        }
+    }
+
+    private void AddRecentDocument(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        string fullPath = Path.GetFullPath(path);
+        _recentDocuments.RemoveAll(p => string.Equals(p, fullPath, StringComparison.OrdinalIgnoreCase));
+        _recentDocuments.Insert(0, fullPath);
+
+        if (_recentDocuments.Count > MaxRecentDocuments)
+        {
+            _recentDocuments.RemoveRange(MaxRecentDocuments, _recentDocuments.Count - MaxRecentDocuments);
+        }
+
+        SaveRecentDocuments();
+        UpdateRecentDocumentsMenu();
+    }
+
+    private void RemoveRecentDocument(string path)
+    {
+        bool removed = _recentDocuments.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase)) > 0;
+        if (removed)
+        {
+            SaveRecentDocuments();
+            UpdateRecentDocumentsMenu();
+        }
     }
 
     private void UpdateLanguageIndicator()
@@ -1099,6 +1219,36 @@ public partial class MainWindow : Window
         ApplyTheme();
     }
 
+    private void RecentDocumentMenuItem_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: string path })
+        {
+            OpenDocument(path, confirmUnsavedChanges: true);
+        }
+    }
+
+    private bool OpenDocument(string path, bool confirmUnsavedChanges)
+    {
+        if (confirmUnsavedChanges && !ConfirmDiscardUnsavedChanges())
+        {
+            return false;
+        }
+
+        if (!File.Exists(path))
+        {
+            MessageBox.Show(this,
+                $"The file could not be found:\n{path}",
+                "File Not Found",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            RemoveRecentDocument(path);
+            return false;
+        }
+
+        LoadDocumentFromFile(path);
+        return true;
+    }
+
     private void OpenDocumentFromDialog()
     {
         if (!ConfirmDiscardUnsavedChanges())
@@ -1122,7 +1272,7 @@ public partial class MainWindow : Window
 
         if (dialog.ShowDialog() == true)
         {
-            LoadDocumentFromFile(dialog.FileName);
+            OpenDocument(dialog.FileName, confirmUnsavedChanges: false);
         }
     }
 

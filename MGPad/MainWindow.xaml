@@ -143,11 +143,42 @@
         </Border>
 
         <StatusBar x:Name="MainStatusBar" Grid.Row="3">
-            <StatusBarItem>
+            <StatusBar.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                    </Grid>
+                </ItemsPanelTemplate>
+            </StatusBar.ItemsPanel>
+
+            <StatusBarItem Grid.Column="0">
                 <TextBlock x:Name="FileNameTextBlock" Text="Untitled" />
             </StatusBarItem>
-            <StatusBarItem HorizontalAlignment="Right">
+            <StatusBarItem Grid.Column="1">
                 <TextBlock x:Name="LanguageIndicatorTextBlock" Text="EN" />
+            </StatusBarItem>
+            <StatusBarItem Grid.Column="2">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ZoomOutButton"
+                            Content="-"
+                            Width="22"
+                            Height="22"
+                            Margin="0,0,4,0"
+                            Click="ZoomOutButton_Click" />
+                    <TextBlock x:Name="ZoomPercentageTextBlock"
+                               Text="100%"
+                               VerticalAlignment="Center" />
+                    <Button x:Name="ZoomInButton"
+                            Content="+"
+                            Width="22"
+                            Height="22"
+                            Margin="4,0,0,0"
+                            Click="ZoomInButton_Click" />
+                </StackPanel>
             </StatusBarItem>
         </StatusBar>
     </Grid>

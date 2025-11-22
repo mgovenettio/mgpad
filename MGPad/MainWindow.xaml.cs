@@ -48,6 +48,10 @@ public partial class MainWindow : Window
     private bool _allowCloseWithoutPrompt;
     private bool _isMarkdownMode = false;
     private bool _isNightMode = false;
+    private const double ZoomStep = 0.1;
+    private const double MinZoom = 0.5;
+    private const double MaxZoom = 3.0;
+    private double _zoomLevel = 1.0;
     private readonly DispatcherTimer _markdownPreviewTimer;
     private CultureInfo? _englishInputLanguage;
     private CultureInfo? _japaneseInputLanguage;
@@ -135,6 +139,7 @@ public partial class MainWindow : Window
 
         SetMarkdownMode(false);
         ApplyTheme();
+        ApplyZoom();
     }
 
     private void ApplyMarkdownModeLayout()
@@ -224,8 +229,48 @@ public partial class MainWindow : Window
             MainStatusBar.Foreground = foreground;
         }
 
+        if (ZoomPercentageTextBlock != null)
+            ZoomPercentageTextBlock.Foreground = foreground;
+
         if (NightModeButton != null)
             NightModeButton.Content = _isNightMode ? "Day" : "Night";
+    }
+
+    private void ApplyZoom()
+    {
+        if (EditorBox != null)
+            EditorBox.LayoutTransform = new ScaleTransform(_zoomLevel, _zoomLevel);
+
+        if (ZoomPercentageTextBlock != null)
+            ZoomPercentageTextBlock.Text = $"{Math.Round(_zoomLevel * 100)}%";
+
+        if (ZoomInButton != null)
+            ZoomInButton.IsEnabled = _zoomLevel < MaxZoom;
+
+        if (ZoomOutButton != null)
+            ZoomOutButton.IsEnabled = _zoomLevel > MinZoom;
+    }
+
+    private void ChangeZoom(double delta)
+    {
+        double newLevel = _zoomLevel + delta;
+        newLevel = Math.Max(MinZoom, Math.Min(MaxZoom, newLevel));
+
+        if (Math.Abs(newLevel - _zoomLevel) < 0.0001)
+            return;
+
+        _zoomLevel = newLevel;
+        ApplyZoom();
+    }
+
+    private void ZoomInButton_Click(object sender, RoutedEventArgs e)
+    {
+        ChangeZoom(ZoomStep);
+    }
+
+    private void ZoomOutButton_Click(object sender, RoutedEventArgs e)
+    {
+        ChangeZoom(-ZoomStep);
     }
 
     private void UpdateMarkdownPreview()

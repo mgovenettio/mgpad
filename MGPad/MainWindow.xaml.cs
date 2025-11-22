@@ -58,6 +58,12 @@ public partial class MainWindow : Window
         public List<PdfTextRun> Runs { get; } = new();
     }
 
+    private sealed class PdfLineSpan
+    {
+        public string Text { get; set; } = string.Empty;
+        public XFont Font { get; set; } = null!;
+    }
+
     public MainWindow()
     {
         InitializeComponent();
@@ -666,9 +672,6 @@ public partial class MainWindow : Window
         double y = marginTop;
         foreach (var paragraph in paragraphs)
         {
-            // Simple line-based layout: assemble paragraph text and draw line by line
-            string paragraphText = string.Concat(paragraph.Runs.Select(r => r.Text));
-
             // For simplicity, choose a font based on the first run that has formatting
             bool anyBold = paragraph.Runs.Any(r => r.IsBold);
             bool anyUnderline = paragraph.Runs.Any(r => r.IsUnderline);
@@ -684,9 +687,16 @@ public partial class MainWindow : Window
             double lineHeight = fontToUse.GetHeight(gfx) * 1.4;
             double usableWidth = page.Width - marginLeft - marginRight;
 
-            var wrappedLines = WrapText(paragraphText, fontToUse, usableWidth, gfx);
+            var wrappedLines = WrapParagraphRuns(
+                paragraph.Runs,
+                gfx,
+                usableWidth,
+                regularFont,
+                boldFont,
+                underlineFont,
+                boldUnderlineFont);
 
-            foreach (string line in wrappedLines)
+            foreach (var line in wrappedLines)
             {
                 if (y + lineHeight > page.Height - marginBottom)
                 {
@@ -696,9 +706,21 @@ public partial class MainWindow : Window
                     y = marginTop;
                 }
 
-                gfx.DrawString(line, fontToUse, XBrushes.Black,
-                    new XRect(marginLeft, y, usableWidth, lineHeight),
-                    XStringFormats.TopLeft);
+                if (line.Count == 0)
+                {
+                    y += lineHeight;
+                    continue;
+                }
+
+                double x = marginLeft;
+                foreach (var span in line)
+                {
+                    double spanWidth = gfx.MeasureString(span.Text, span.Font).Width;
+                    gfx.DrawString(span.Text, span.Font, XBrushes.Black,
+                        new XRect(x, y, spanWidth, lineHeight),
+                        XStringFormats.TopLeft);
+                    x += spanWidth;
+                }
 
                 y += lineHeight;
             }
@@ -710,103 +732,158 @@ public partial class MainWindow : Window
         document.Save(pdfPath);
     }
 
-    private List<string> WrapText(string text, XFont font, double maxWidth, XGraphics gfx)
+    private List<List<PdfLineSpan>> WrapParagraphRuns(
+        IEnumerable<PdfTextRun> runs,
+        XGraphics gfx,
+        double maxWidth,
+        XFont regularFont,
+        XFont boldFont,
+        XFont underlineFont,
+        XFont boldUnderlineFont)
     {
-        var wrappedLines = new List<string>();
-        string[] rawLines = text.Replace("\r\n", "\n").Split('\n');
+        var lines = new List<List<PdfLineSpan>>();
+        var currentLine = new List<PdfLineSpan>();
+        double currentWidth = 0;
 
-        foreach (string rawLine in rawLines)
+        void AddLine()
         {
-            if (string.IsNullOrEmpty(rawLine))
-            {
-                wrappedLines.Add(string.Empty);
-                continue;
-            }
-
-            string[] words = rawLine.Split(' ');
-            string currentLine = string.Empty;
-
-            foreach (string word in words)
-            {
-                if (string.IsNullOrEmpty(word))
-                    continue;
-
-                if (string.IsNullOrEmpty(currentLine))
-                {
-                    AddWordOrSplit(word, ref currentLine, wrappedLines, font, maxWidth, gfx);
-                    continue;
-                }
-
-                string candidate = currentLine + " " + word;
-                if (gfx.MeasureString(candidate, font).Width <= maxWidth)
-                {
-                    currentLine = candidate;
-                }
-                else
-                {
-                    wrappedLines.Add(currentLine);
-                    currentLine = string.Empty;
-                    AddWordOrSplit(word, ref currentLine, wrappedLines, font, maxWidth, gfx);
-                }
-            }
-
-            if (!string.IsNullOrEmpty(currentLine))
-            {
-                wrappedLines.Add(currentLine);
-            }
+            lines.Add(currentLine);
+            currentLine = new List<PdfLineSpan>();
+            currentWidth = 0;
         }
 
-        return wrappedLines;
-    }
-
-    private void AddWordOrSplit(string word, ref string currentLine, List<string> wrappedLines, XFont font, double maxWidth, XGraphics gfx)
-    {
-        if (gfx.MeasureString(word, font).Width <= maxWidth)
+        void AppendSpan(string text, XFont font)
         {
-            currentLine = word;
-            return;
-        }
+            if (string.IsNullOrEmpty(text))
+                return;
 
-        int index = 0;
-        while (index < word.Length)
-        {
-            int length = FindMaxFittingLength(word, index, font, maxWidth, gfx);
-            string segment = word.Substring(index, length);
+            double width = gfx.MeasureString(text, font).Width;
 
-            if (!string.IsNullOrEmpty(currentLine))
+            if (currentLine.Count > 0 && currentLine[^1].Font == font)
             {
-                wrappedLines.Add(currentLine);
-            }
-
-            currentLine = segment;
-            index += length;
-        }
-    }
-
-    private int FindMaxFittingLength(string word, int startIndex, XFont font, double maxWidth, XGraphics gfx)
-    {
-        int low = 1;
-        int high = word.Length - startIndex;
-        int result = 1;
-
-        while (low <= high)
-        {
-            int mid = (low + high) / 2;
-            string candidate = word.Substring(startIndex, mid);
-            double width = gfx.MeasureString(candidate, font).Width;
-
-            if (width <= maxWidth)
-            {
-                result = mid;
-                low = mid + 1;
+                currentLine[^1].Text += text;
             }
             else
             {
-                high = mid - 1;
+                currentLine.Add(new PdfLineSpan { Text = text, Font = font });
+            }
+
+            currentWidth += width;
+        }
+
+        int GetFittingLength(string text, XFont font, double availableWidth)
+        {
+            if (availableWidth <= 0)
+                return 0;
+
+            int length = 0;
+            for (int i = 1; i <= text.Length; i++)
+            {
+                double width = gfx.MeasureString(text.Substring(0, i), font).Width;
+                if (width <= availableWidth)
+                {
+                    length = i;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return length;
+        }
+
+        foreach (var run in runs)
+        {
+            XFont font = GetFontForRun(run, regularFont, boldFont, underlineFont, boldUnderlineFont);
+            string normalized = run.Text.Replace("\r\n", "\n");
+            string[] segments = normalized.Split('\n');
+
+            for (int s = 0; s < segments.Length; s++)
+            {
+                string segment = segments[s];
+
+                foreach (string token in TokenizeSegment(segment))
+                {
+                    string remaining = token;
+                    while (remaining.Length > 0)
+                    {
+                        double available = maxWidth - currentWidth;
+                        int fitLength = GetFittingLength(remaining, font, available);
+
+                        if (fitLength == 0)
+                        {
+                            AddLine();
+                            available = maxWidth - currentWidth;
+                            fitLength = GetFittingLength(remaining, font, available);
+                        }
+
+                        string piece = remaining.Substring(0, fitLength);
+                        AppendSpan(piece, font);
+                        remaining = remaining.Substring(fitLength);
+
+                        if (remaining.Length > 0)
+                        {
+                            AddLine();
+                        }
+                    }
+                }
+
+                if (s < segments.Length - 1)
+                {
+                    AddLine();
+                }
             }
         }
 
-        return result;
+        if (currentLine.Count > 0 || lines.Count == 0)
+        {
+            lines.Add(currentLine);
+        }
+
+        return lines;
+    }
+
+    private static XFont GetFontForRun(PdfTextRun run, XFont regularFont, XFont boldFont, XFont underlineFont, XFont boldUnderlineFont)
+    {
+        if (run.IsBold && run.IsUnderline)
+            return boldUnderlineFont;
+        if (run.IsBold)
+            return boldFont;
+        if (run.IsUnderline)
+            return underlineFont;
+
+        return regularFont;
+    }
+
+    private IEnumerable<string> TokenizeSegment(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            yield break;
+
+        var builder = new StringBuilder();
+        bool? isWhitespace = null;
+
+        foreach (char c in text)
+        {
+            bool currentIsWhitespace = char.IsWhiteSpace(c);
+
+            if (isWhitespace == null || currentIsWhitespace == isWhitespace)
+            {
+                builder.Append(c);
+            }
+            else
+            {
+                yield return builder.ToString();
+                builder.Clear();
+                builder.Append(c);
+            }
+
+            isWhitespace = currentIsWhitespace;
+        }
+
+        if (builder.Length > 0)
+            yield return builder.ToString();
     }
 
     private void FileExit_Click(object sender, RoutedEventArgs e) => ExitApplication();

@@ -496,47 +496,147 @@ public partial class MainWindow : Window
 
         foreach (var block in EditorBox.Document.Blocks)
         {
-            if (block is Paragraph paragraph)
-            {
-                var pdfParagraph = new PdfParagraph();
-
-                foreach (Inline inline in paragraph.Inlines)
-                {
-                    if (inline is Run run)
-                    {
-                        string text = run.Text;
-                        if (string.IsNullOrEmpty(text))
-                            continue;
-
-                        bool isBold = run.FontWeight == FontWeights.Bold;
-                        bool isUnderline = run.TextDecorations == TextDecorations.Underline;
-
-                        pdfParagraph.Runs.Add(new PdfTextRun
-                        {
-                            Text = text,
-                            IsBold = isBold,
-                            IsUnderline = isUnderline
-                        });
-                    }
-                    else if (inline is LineBreak)
-                    {
-                        // Represent line breaks as separate runs if desired
-                        pdfParagraph.Runs.Add(new PdfTextRun { Text = "\n" });
-                    }
-                }
-
-                // Ignore completely empty paragraphs
-                if (pdfParagraph.Runs.Count > 0)
-                    result.Add(pdfParagraph);
-            }
-            else
-            {
-                // For non-Paragraph blocks (Lists, etc.), you can either ignore or flatten
-                // For now, skip or convert to plain paragraphs later if needed.
-            }
+            CollectParagraphs(block, result);
         }
 
         return result;
+    }
+
+    private void CollectParagraphs(Block block, List<PdfParagraph> result, string? prefix = null)
+    {
+        switch (block)
+        {
+            case Paragraph paragraph:
+                var pdfParagraph = CreatePdfParagraphFromParagraph(paragraph, prefix);
+                if (pdfParagraph != null)
+                    result.Add(pdfParagraph);
+                break;
+            case List list:
+                int index = list.StartIndex <= 0 ? 1 : list.StartIndex;
+                foreach (ListItem item in list.ListItems)
+                {
+                    string marker = GetListMarkerText(list.MarkerStyle, index);
+                    CollectParagraphsFromListItem(item, result, marker);
+                    index++;
+                }
+                break;
+            case Section section:
+                foreach (var child in section.Blocks)
+                {
+                    CollectParagraphs(child, result, prefix);
+                }
+                break;
+        }
+    }
+
+    private void CollectParagraphsFromListItem(ListItem item, List<PdfParagraph> result, string marker)
+    {
+        bool isFirstBlock = true;
+        foreach (var child in item.Blocks)
+        {
+            string? prefix = isFirstBlock ? marker : new string(' ', marker.Length);
+            CollectParagraphs(child, result, prefix);
+            isFirstBlock = false;
+        }
+    }
+
+    private PdfParagraph? CreatePdfParagraphFromParagraph(Paragraph paragraph, string? prefix)
+    {
+        var pdfParagraph = new PdfParagraph();
+
+        if (!string.IsNullOrEmpty(prefix))
+        {
+            pdfParagraph.Runs.Add(new PdfTextRun { Text = prefix });
+        }
+
+        foreach (Inline inline in paragraph.Inlines)
+        {
+            if (inline is Run run)
+            {
+                string text = run.Text;
+                if (string.IsNullOrEmpty(text))
+                    continue;
+
+                bool isBold = run.FontWeight == FontWeights.Bold;
+                bool isUnderline = run.TextDecorations == TextDecorations.Underline;
+
+                pdfParagraph.Runs.Add(new PdfTextRun
+                {
+                    Text = text,
+                    IsBold = isBold,
+                    IsUnderline = isUnderline
+                });
+            }
+            else if (inline is LineBreak)
+            {
+                // Represent line breaks as separate runs if desired
+                pdfParagraph.Runs.Add(new PdfTextRun { Text = "\n" });
+            }
+        }
+
+        // Ignore completely empty paragraphs
+        return pdfParagraph.Runs.Count > 0 ? pdfParagraph : null;
+    }
+
+    private string GetListMarkerText(TextMarkerStyle style, int index)
+    {
+        return style switch
+        {
+            TextMarkerStyle.None => string.Empty,
+            TextMarkerStyle.Disc => "• ",
+            TextMarkerStyle.Circle => "○ ",
+            TextMarkerStyle.Square => "▪ ",
+            TextMarkerStyle.Box => "▪ ",
+            TextMarkerStyle.LowerRoman => $"{ToRoman(index).ToLowerInvariant()}. ",
+            TextMarkerStyle.UpperRoman => $"{ToRoman(index)}. ",
+            TextMarkerStyle.LowerLatin => $"{ToAlphabetic(index, false)}. ",
+            TextMarkerStyle.UpperLatin => $"{ToAlphabetic(index, true)}. ",
+            _ => $"{index}. ",
+        };
+    }
+
+    private string ToAlphabetic(int number, bool upper)
+    {
+        if (number <= 0)
+            return string.Empty;
+
+        var builder = new StringBuilder();
+        int n = number;
+        while (n > 0)
+        {
+            n--;
+            builder.Insert(0, (char)((n % 26) + (upper ? 'A' : 'a')));
+            n /= 26;
+        }
+
+        return builder.ToString();
+    }
+
+    private string ToRoman(int number)
+    {
+        if (number <= 0)
+            return string.Empty;
+
+        (int value, string symbol)[] map =
+        {
+            (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+            (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+            (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")
+        };
+
+        var result = new StringBuilder();
+        int remaining = number;
+
+        foreach (var (value, symbol) in map)
+        {
+            while (remaining >= value)
+            {
+                result.Append(symbol);
+                remaining -= value;
+            }
+        }
+
+        return result.ToString();
     }
 
     private void ExportDocumentToPdf(string pdfPath)

@@ -211,6 +211,17 @@ public partial class MainWindow : Window
         UpdateMarkdownPreview();
     }
 
+    private void DisableMarkdownModeLayout()
+    {
+        _isMarkdownMode = false;
+
+        if (MarkdownModeMenuItem != null)
+            MarkdownModeMenuItem.IsChecked = false;
+
+        ApplyMarkdownModeLayout();
+        UpdateMarkdownPreview();
+    }
+
     private void MarkdownModeMenuItem_Click(object sender, RoutedEventArgs e)
     {
         bool enable = MarkdownModeMenuItem?.IsChecked ?? false;
@@ -1346,26 +1357,23 @@ public partial class MainWindow : Window
             var documentType = DetermineDocumentType(path);
             if (documentType == DocumentType.Markdown)
             {
-                _currentDocumentType = DocumentType.Markdown;
                 var text = File.ReadAllText(path);
                 SetEditorPlainText(text);
                 SetMarkdownMode(true);
             }
             else if (documentType == DocumentType.RichText)
             {
-                _currentDocumentType = DocumentType.RichText;
                 LoadRtfIntoEditor(path);
                 SetMarkdownMode(false);
             }
             else
             {
-                _currentDocumentType = DocumentType.PlainText;
                 var text = File.ReadAllText(path);
                 SetEditorPlainText(text);
-                SetMarkdownMode(false);
+                DisableMarkdownModeLayout();
             }
 
-            SetCurrentFile(path, _currentDocumentType);
+            SetCurrentFile(path, documentType);
             UpdateFormattingControls();
             MarkClean();
         }

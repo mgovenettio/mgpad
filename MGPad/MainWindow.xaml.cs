@@ -187,18 +187,20 @@ public partial class MainWindow : Window
 
     private void SetMarkdownMode(bool enable)
     {
+        bool isMarkdownDocument = _currentDocumentType == DocumentType.Markdown
+            || (!string.IsNullOrEmpty(_currentFilePath) && DetermineDocumentType(_currentFilePath) == DocumentType.Markdown);
+
         if (enable)
         {
-            if (!_isMarkdownMode)
+            if (!isMarkdownDocument)
                 _previousDocumentType = _currentDocumentType;
 
-            _currentDocumentType = DocumentType.Markdown;
+            if (_currentDocumentType != DocumentType.Markdown)
+                _currentDocumentType = DocumentType.Markdown;
         }
-        else
+        else if (!isMarkdownDocument)
         {
             _currentDocumentType = _previousDocumentType;
-            if (_currentDocumentType == DocumentType.Markdown)
-                _currentDocumentType = DocumentType.RichText;
         }
 
         _isMarkdownMode = enable;
@@ -1450,7 +1452,9 @@ public partial class MainWindow : Window
 
     private bool SaveDocumentWithDialog()
     {
-        var dialogDocumentType = _isMarkdownMode ? DocumentType.Markdown : _currentDocumentType;
+        var dialogDocumentType = _currentDocumentType == DocumentType.Markdown
+            ? DocumentType.Markdown
+            : (_isMarkdownMode ? DocumentType.Markdown : _currentDocumentType);
 
         var dialog = new SaveFileDialog
         {

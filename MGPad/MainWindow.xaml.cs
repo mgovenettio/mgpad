@@ -43,6 +43,7 @@ public partial class MainWindow : Window
 
     private string? _currentFilePath;
     private DocumentType _currentDocumentType;
+    private DocumentType _previousDocumentType = DocumentType.RichText;
     private bool _isDirty;
     private bool _isLoadingDocument;
     private bool _allowCloseWithoutPrompt;
@@ -186,11 +187,26 @@ public partial class MainWindow : Window
 
     private void SetMarkdownMode(bool enable)
     {
+        if (enable)
+        {
+            if (!_isMarkdownMode)
+                _previousDocumentType = _currentDocumentType;
+
+            _currentDocumentType = DocumentType.Markdown;
+        }
+        else
+        {
+            _currentDocumentType = _previousDocumentType;
+            if (_currentDocumentType == DocumentType.Markdown)
+                _currentDocumentType = DocumentType.RichText;
+        }
+
         _isMarkdownMode = enable;
 
         if (MarkdownModeMenuItem != null)
             MarkdownModeMenuItem.IsChecked = enable;
 
+        UpdateFormattingControls();
         ApplyMarkdownModeLayout();
         UpdateMarkdownPreview();
     }
@@ -1225,10 +1241,12 @@ public partial class MainWindow : Window
             _isLoadingDocument = false;
         }
 
-        SetCurrentFile(null, DocumentType.RichText);
+        var newDocumentType = _isMarkdownMode ? DocumentType.Markdown : DocumentType.RichText;
+        SetCurrentFile(null, newDocumentType);
         MarkClean();
         UpdateFormattingControls();
         ApplyTheme();
+        UpdateMarkdownPreview();
     }
 
     private void RecentDocumentMenuItem_Click(object? sender, RoutedEventArgs e)
@@ -1424,12 +1442,14 @@ public partial class MainWindow : Window
 
     private bool SaveDocumentWithDialog()
     {
+        var dialogDocumentType = _isMarkdownMode ? DocumentType.Markdown : _currentDocumentType;
+
         var dialog = new SaveFileDialog
         {
             Filter = "Text Documents (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|Markdown Files (*.md)|*.md|All files (*.*)|*.*",
             AddExtension = true,
-            DefaultExt = GetExtensionForDocumentType(_currentDocumentType),
-            FilterIndex = GetFilterIndexForDocumentType(_currentDocumentType)
+            DefaultExt = GetExtensionForDocumentType(dialogDocumentType),
+            FilterIndex = GetFilterIndexForDocumentType(dialogDocumentType)
         };
 
         if (!string.IsNullOrEmpty(_currentFilePath))

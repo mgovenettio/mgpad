@@ -9,14 +9,14 @@
     <Window.InputBindings>
         <KeyBinding Command="ApplicationCommands.SaveAs"
                     Key="S"
-                    Modifiers="Control,Shift" />
+                    Modifiers="Control+Shift" />
         <KeyBinding Modifiers="Control" Key="B" Command="{x:Static local:MainWindow.ToggleBoldCommand}" />
         <KeyBinding Modifiers="Control" Key="U" Command="{x:Static local:MainWindow.ToggleUnderlineCommand}" />
         <KeyBinding Command="{x:Static local:MainWindow.ToggleInputLanguageCommand}"
                     Modifiers="Control"
                     Key="J" />
         <KeyBinding Command="{x:Static local:MainWindow.InsertTimestampCommand}"
-                    Modifiers="Alt,Shift"
+                    Modifiers="Alt+Shift"
                     Key="T" />
     </Window.InputBindings>
     <Window.CommandBindings>

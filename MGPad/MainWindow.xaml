@@ -16,7 +16,7 @@
                     Modifiers="Control"
                     Key="J" />
         <KeyBinding Command="{x:Static local:MainWindow.InsertTimestampCommand}"
-                    Modifiers="Control"
+                    Modifiers="Alt,Shift"
                     Key="T" />
     </Window.InputBindings>
     <Window.CommandBindings>
@@ -97,7 +97,7 @@
                 <MenuItem x:Name="InsertTimestampMenuItem"
                           Header="_Insert Timestamp"
                           Click="InsertTimestampMenuItem_Click"
-                          InputGestureText="Ctrl+T" />
+                          InputGestureText="Alt+Shift+T" />
             </MenuItem>
             <MenuItem Header="_Help" />
         </Menu>

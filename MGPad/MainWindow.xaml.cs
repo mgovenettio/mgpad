@@ -445,7 +445,7 @@ public partial class MainWindow : Window
 
         string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
 
-        TextSelection selection = EditorBox.Selection;
+        TextRange selection = EditorBox.Selection;
 
         if (!selection.IsEmpty)
         {

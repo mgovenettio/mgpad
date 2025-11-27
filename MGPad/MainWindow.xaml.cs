@@ -175,6 +175,7 @@ public partial class MainWindow : Window
         if (EditorBox != null)
         {
             EditorBox.SelectionChanged += EditorBox_SelectionChanged;
+            EditorBox.PreviewKeyDown += EditorBox_PreviewKeyDown;
         }
 
         if (_englishInputLanguage == null || _japaneseInputLanguage == null)
@@ -1550,6 +1551,27 @@ public partial class MainWindow : Window
         ScheduleMarkdownPreviewUpdate();
     }
 
+    private void EditorBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        if (e.Key == Key.Tab && IsSelectionInList())
+        {
+            if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+            {
+                EditingCommands.DecreaseIndentation.Execute(null, EditorBox);
+            }
+            else
+            {
+                EditingCommands.IncreaseIndentation.Execute(null, EditorBox);
+            }
+
+            e.Handled = true;
+            MarkDirty();
+        }
+    }
+
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
         if (_allowCloseWithoutPrompt)
@@ -1866,6 +1888,22 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ToggleBulletedList()
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        EditingCommands.ToggleBullets.Execute(null, EditorBox);
+    }
+
+    private void ToggleNumberedList()
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        EditingCommands.ToggleNumbering.Execute(null, EditorBox);
+    }
+
     private void BoldButton_Click(object sender, RoutedEventArgs e)
     {
         if (!CanFormat())
@@ -1902,9 +1940,51 @@ public partial class MainWindow : Window
         MarkDirty();
     }
 
+    private void BulletedListButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        ToggleBulletedList();
+        MarkDirty();
+    }
+
+    private void NumberedListButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        ToggleNumberedList();
+        MarkDirty();
+    }
+
     private bool CanFormat()
     {
         return _currentDocumentType == DocumentType.RichText;
+    }
+
+    private System.Windows.Documents.List? GetAncestorList(TextPointer position)
+    {
+        DependencyObject? current = position.Parent;
+
+        while (current != null && current is not FlowDocument)
+        {
+            if (current is System.Windows.Documents.List list)
+                return list;
+
+            current = LogicalTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
+    private bool IsSelectionInList()
+    {
+        if (EditorBox == null)
+            return false;
+
+        return GetAncestorList(EditorBox.Selection.Start) != null
+            || GetAncestorList(EditorBox.Selection.End) != null;
     }
 
     private void UpdateFormattingControls()
@@ -1919,6 +1999,10 @@ public partial class MainWindow : Window
             UnderlineButton.IsEnabled = canFormat;
         if (StrikethroughButton != null)
             StrikethroughButton.IsEnabled = canFormat;
+        if (BulletedListButton != null)
+            BulletedListButton.IsEnabled = canFormat;
+        if (NumberedListButton != null)
+            NumberedListButton.IsEnabled = canFormat;
         if (AlignLeftButton != null)
             AlignLeftButton.IsEnabled = canFormat;
         if (AlignCenterButton != null)

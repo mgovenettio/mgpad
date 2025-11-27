@@ -112,6 +112,9 @@
                 <Button x:Name="UnderlineButton" Content="U" Click="UnderlineButton_Click" />
                 <Button x:Name="StrikethroughButton" Content="S" Click="StrikethroughButton_Click" />
                 <Separator />
+                <Button x:Name="BulletedListButton" Content="•" Click="BulletedListButton_Click" />
+                <Button x:Name="NumberedListButton" Content="1." Click="NumberedListButton_Click" />
+                <Separator />
                 <ComboBox x:Name="FontFamilyComboBox"
                           Width="180"
                           IsEditable="True"
@@ -151,6 +154,7 @@
                 <RichTextBox x:Name="EditorBox"
                              Grid.Column="0"
                              VerticalScrollBarVisibility="Auto"
+                             AcceptsTab="True"
                              TextChanged="EditorBox_TextChanged" />
 
                 <Border Grid.Column="1"

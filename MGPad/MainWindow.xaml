@@ -11,6 +11,7 @@
                     Key="S"
                     Modifiers="Control+Shift" />
         <KeyBinding Modifiers="Control" Key="B" Command="{x:Static local:MainWindow.ToggleBoldCommand}" />
+        <KeyBinding Modifiers="Control" Key="I" Command="{x:Static local:MainWindow.ToggleItalicCommand}" />
         <KeyBinding Modifiers="Control" Key="U" Command="{x:Static local:MainWindow.ToggleUnderlineCommand}" />
         <KeyBinding Command="{x:Static local:MainWindow.ToggleInputLanguageCommand}"
                     Modifiers="Control"
@@ -104,6 +105,7 @@
         <ToolBarTray Grid.Row="1">
             <ToolBar>
                 <Button x:Name="BoldButton" Content="B" Click="BoldButton_Click" />
+                <Button x:Name="ItalicButton" Content="I" Click="ItalicButton_Click" />
                 <Button x:Name="UnderlineButton" Content="U" Click="UnderlineButton_Click" />
                 <Separator />
                 <ComboBox x:Name="FontFamilyComboBox"
@@ -118,6 +120,10 @@
                           SelectionChanged="FontSizeComboBox_SelectionChanged"
                           LostKeyboardFocus="FontSizeComboBox_LostFocus"
                           PreviewKeyDown="FontSizeComboBox_PreviewKeyDown" />
+                <Separator />
+                <Button x:Name="AlignLeftButton" Content="L" Click="AlignLeftButton_Click" />
+                <Button x:Name="AlignCenterButton" Content="C" Click="AlignCenterButton_Click" />
+                <Button x:Name="AlignRightButton" Content="R" Click="AlignRightButton_Click" />
                 <Separator />
                 <Button x:Name="ToggleLanguageButton"
                         Content="JP/EN"

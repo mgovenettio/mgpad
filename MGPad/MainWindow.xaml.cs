@@ -29,6 +29,10 @@ public partial class MainWindow : Window
         new RoutedUICommand("ToggleBold", "ToggleBold", typeof(MainWindow),
             new InputGestureCollection { new KeyGesture(Key.B, ModifierKeys.Control) });
 
+    public static readonly RoutedUICommand ToggleItalicCommand =
+        new RoutedUICommand("ToggleItalic", "ToggleItalic", typeof(MainWindow),
+            new InputGestureCollection { new KeyGesture(Key.I, ModifierKeys.Control) });
+
     public static readonly RoutedUICommand ToggleUnderlineCommand =
         new RoutedUICommand("ToggleUnderline", "ToggleUnderline", typeof(MainWindow),
             new InputGestureCollection { new KeyGesture(Key.U, ModifierKeys.Control) });
@@ -110,6 +114,20 @@ public partial class MainWindow : Window
                 }
 
                 ToggleBold();
+                MarkDirty();
+                e.Handled = true;
+            }));
+
+        CommandBindings.Add(new CommandBinding(ToggleItalicCommand,
+            (s, e) =>
+            {
+                if (!CanFormat())
+                {
+                    e.Handled = true;
+                    return;
+                }
+
+                ToggleItalic();
                 MarkDirty();
                 e.Handled = true;
             }));
@@ -1782,12 +1800,39 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ToggleItalic()
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        TextSelection selection = EditorBox.Selection;
+        object currentStyle = selection.GetPropertyValue(Inline.FontStyleProperty);
+
+        if (currentStyle != DependencyProperty.UnsetValue && currentStyle.Equals(FontStyles.Italic))
+        {
+            selection.ApplyPropertyValue(Inline.FontStyleProperty, FontStyles.Normal);
+        }
+        else
+        {
+            selection.ApplyPropertyValue(Inline.FontStyleProperty, FontStyles.Italic);
+        }
+    }
+
     private void BoldButton_Click(object sender, RoutedEventArgs e)
     {
         if (!CanFormat())
             return;
 
         ToggleBold();
+        MarkDirty();
+    }
+
+    private void ItalicButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        ToggleItalic();
         MarkDirty();
     }
 
@@ -1811,9 +1856,41 @@ public partial class MainWindow : Window
 
         if (BoldButton != null)
             BoldButton.IsEnabled = canFormat;
+        if (ItalicButton != null)
+            ItalicButton.IsEnabled = canFormat;
         if (UnderlineButton != null)
             UnderlineButton.IsEnabled = canFormat;
+        if (AlignLeftButton != null)
+            AlignLeftButton.IsEnabled = canFormat;
+        if (AlignCenterButton != null)
+            AlignCenterButton.IsEnabled = canFormat;
+        if (AlignRightButton != null)
+            AlignRightButton.IsEnabled = canFormat;
 
         UpdateFontControlsFromSelection();
+    }
+
+    private void AlignLeftButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetTextAlignment(TextAlignment.Left);
+    }
+
+    private void AlignCenterButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetTextAlignment(TextAlignment.Center);
+    }
+
+    private void AlignRightButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetTextAlignment(TextAlignment.Right);
+    }
+
+    private void SetTextAlignment(TextAlignment alignment)
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        EditorBox.Selection.ApplyPropertyValue(Paragraph.TextAlignmentProperty, alignment);
+        MarkDirty();
     }
 }

@@ -19,6 +19,9 @@
         <KeyBinding Command="{x:Static local:MainWindow.InsertTimestampCommand}"
                     Modifiers="Alt+Shift"
                     Key="T" />
+        <KeyBinding Command="{x:Static local:MainWindow.ToggleStrikethroughCommand}"
+                    Modifiers="Control+Shift"
+                    Key="X" />
     </Window.InputBindings>
     <Window.CommandBindings>
         <CommandBinding Command="ApplicationCommands.New"
@@ -107,6 +110,7 @@
                 <Button x:Name="BoldButton" Content="B" Click="BoldButton_Click" />
                 <Button x:Name="ItalicButton" Content="I" Click="ItalicButton_Click" />
                 <Button x:Name="UnderlineButton" Content="U" Click="UnderlineButton_Click" />
+                <Button x:Name="StrikethroughButton" Content="S" Click="StrikethroughButton_Click" />
                 <Separator />
                 <ComboBox x:Name="FontFamilyComboBox"
                           Width="180"

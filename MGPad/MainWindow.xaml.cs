@@ -37,6 +37,10 @@ public partial class MainWindow : Window
         new RoutedUICommand("ToggleUnderline", "ToggleUnderline", typeof(MainWindow),
             new InputGestureCollection { new KeyGesture(Key.U, ModifierKeys.Control) });
 
+    public static readonly RoutedUICommand ToggleStrikethroughCommand =
+        new RoutedUICommand("ToggleStrikethrough", "ToggleStrikethrough", typeof(MainWindow),
+            new InputGestureCollection { new KeyGesture(Key.X, ModifierKeys.Control | ModifierKeys.Shift) });
+
     public static readonly RoutedUICommand ToggleInputLanguageCommand =
         new RoutedUICommand("ToggleInputLanguage", "ToggleInputLanguage", typeof(MainWindow),
             new InputGestureCollection { new KeyGesture(Key.J, ModifierKeys.Control) });
@@ -142,6 +146,19 @@ public partial class MainWindow : Window
                 }
 
                 ToggleUnderline();
+                MarkDirty();
+                e.Handled = true;
+            }));
+        CommandBindings.Add(new CommandBinding(ToggleStrikethroughCommand,
+            (s, e) =>
+            {
+                if (!CanFormat())
+                {
+                    e.Handled = true;
+                    return;
+                }
+
+                ToggleStrikethrough();
                 MarkDirty();
                 e.Handled = true;
             }));
@@ -1800,6 +1817,37 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ToggleStrikethrough()
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        TextSelection selection = EditorBox.Selection;
+        object currentDecorations = selection.GetPropertyValue(Inline.TextDecorationsProperty);
+
+        var current = currentDecorations as TextDecorationCollection;
+        bool hasStrikethrough = current != null && current.Any(d => d.Location == TextDecorationLocation.Strikethrough);
+
+        if (hasStrikethrough)
+        {
+            var updated = new TextDecorationCollection(current ?? new TextDecorationCollection());
+            foreach (var decoration in TextDecorations.Strikethrough)
+            {
+                updated.Remove(decoration);
+            }
+
+            selection.ApplyPropertyValue(Inline.TextDecorationsProperty, updated.Count > 0 ? updated : null);
+        }
+        else
+        {
+            var updated = new TextDecorationCollection(current ?? new TextDecorationCollection())
+            {
+                TextDecorations.Strikethrough[0]
+            };
+            selection.ApplyPropertyValue(Inline.TextDecorationsProperty, updated);
+        }
+    }
+
     private void ToggleItalic()
     {
         if (EditorBox == null || !CanFormat())
@@ -1845,6 +1893,15 @@ public partial class MainWindow : Window
         MarkDirty();
     }
 
+    private void StrikethroughButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        ToggleStrikethrough();
+        MarkDirty();
+    }
+
     private bool CanFormat()
     {
         return _currentDocumentType == DocumentType.RichText;
@@ -1860,6 +1917,8 @@ public partial class MainWindow : Window
             ItalicButton.IsEnabled = canFormat;
         if (UnderlineButton != null)
             UnderlineButton.IsEnabled = canFormat;
+        if (StrikethroughButton != null)
+            StrikethroughButton.IsEnabled = canFormat;
         if (AlignLeftButton != null)
             AlignLeftButton.IsEnabled = canFormat;
         if (AlignCenterButton != null)

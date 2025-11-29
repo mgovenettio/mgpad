@@ -155,7 +155,13 @@
                              Grid.Column="0"
                              VerticalScrollBarVisibility="Auto"
                              AcceptsTab="True"
-                             TextChanged="EditorBox_TextChanged" />
+                             TextChanged="EditorBox_TextChanged">
+                    <RichTextBox.Resources>
+                        <Style TargetType="Paragraph">
+                            <Setter Property="Margin" Value="0" />
+                        </Style>
+                    </RichTextBox.Resources>
+                </RichTextBox>
 
                 <Border Grid.Column="1"
                         x:Name="MarkdownPreviewContainer"

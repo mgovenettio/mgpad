@@ -479,7 +479,7 @@ public partial class MainWindow : Window
         if (EditorBox == null)
             return;
 
-        string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+        string timestamp = DateTime.Now.ToString("dddd, MMMM d, yyyy h:mm tt");
 
         TextRange selection = EditorBox.Selection;
 

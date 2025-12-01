@@ -103,7 +103,7 @@
                           Click="InsertTimestampMenuItem_Click"
                           InputGestureText="Alt+Shift+T" />
             </MenuItem>
-            <MenuItem Header="_Help" />
+            <MenuItem Header="_Help" Click="HelpMenuItem_Click" />
         </Menu>
         <ToolBarTray Grid.Row="1">
             <ToolBar>

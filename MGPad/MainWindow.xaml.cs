@@ -91,6 +91,16 @@ public partial class MainWindow : Window
         public XFont Font { get; set; } = null!;
     }
 
+    private const string HelpText =
+        "MGPad quick help:\n" +
+        "\n" +
+        "• Ctrl+N / Ctrl+O / Ctrl+S to create, open, or save documents.\n" +
+        "• Ctrl+B / Ctrl+I / Ctrl+U / Ctrl+Shift+X to toggle bold, italic, underline, or strikethrough.\n" +
+        "• Alt+Shift+T inserts a timestamp.\n" +
+        "• Use View → Markdown Mode to preview Markdown on the right.\n" +
+        "• Toggle JP/EN switches input language when both are available.\n" +
+        "• Use the zoom controls in the status bar to adjust text size.";
+
     public MainWindow()
     {
         InitializeComponent();
@@ -198,6 +208,15 @@ public partial class MainWindow : Window
         ApplyZoom();
         LoadRecentDocuments();
         UpdateRecentDocumentsMenu();
+    }
+
+    private void HelpMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        MessageBox.Show(
+            HelpText,
+            "MGPad Help",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     private void ApplyMarkdownModeLayout()

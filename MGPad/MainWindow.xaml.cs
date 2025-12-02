@@ -48,7 +48,7 @@ public partial class MainWindow : Window
 
     public static readonly RoutedUICommand InsertTimestampCommand =
         new RoutedUICommand("InsertTimestamp", "InsertTimestamp", typeof(MainWindow),
-            new InputGestureCollection { new KeyGesture(Key.T, ModifierKeys.Control) });
+            new InputGestureCollection { new KeyGesture(Key.T, ModifierKeys.Alt | ModifierKeys.Shift) });
 
     private string? _currentFilePath;
     private DocumentType _currentDocumentType;

@@ -161,6 +161,25 @@
                             <Setter Property="Margin" Value="0" />
                         </Style>
                     </RichTextBox.Resources>
+                    <RichTextBox.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Command="ApplicationCommands.Cut"
+                                      CommandTarget="{Binding ElementName=EditorBox}"
+                                      Header="Cut" />
+                            <MenuItem Command="ApplicationCommands.Copy"
+                                      CommandTarget="{Binding ElementName=EditorBox}"
+                                      Header="Copy" />
+                            <MenuItem Command="ApplicationCommands.Paste"
+                                      CommandTarget="{Binding ElementName=EditorBox}"
+                                      Header="Paste" />
+                            <MenuItem Command="ApplicationCommands.SelectAll"
+                                      CommandTarget="{Binding ElementName=EditorBox}"
+                                      Header="Select All" />
+                            <Separator />
+                            <MenuItem Header="Sum Selection"
+                                      Click="SumSelectionMenuItem_Click" />
+                        </ContextMenu>
+                    </RichTextBox.ContextMenu>
                 </RichTextBox>
 
                 <Border Grid.Column="1"

@@ -8,6 +8,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Text;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using System.Windows.Threading;
 using System.Windows.Media;
@@ -72,6 +73,9 @@ public partial class MainWindow : Window
     private bool _isUpdatingFontControls;
     private readonly double[] _defaultFontSizes = new double[]
         { 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72 };
+    private static readonly Regex NumberRegex = new(
+        "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?",
+        RegexOptions.Compiled);
 
     private sealed class PdfTextRun
     {
@@ -523,6 +527,84 @@ public partial class MainWindow : Window
         EditorBox.Focus();
         MarkDirty();
         ScheduleMarkdownPreviewUpdate();
+    }
+
+    private void SumSelectionMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (EditorBox == null)
+            return;
+
+        string selectedText = EditorBox.Selection.Text;
+        if (string.IsNullOrWhiteSpace(selectedText))
+        {
+            MessageBox.Show(
+                "Select one or more numbers to sum.",
+                "Sum selection",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var numbers = ExtractNumbersFromSelection(selectedText);
+        if (numbers.Count == 0)
+        {
+            MessageBox.Show(
+                "No numbers were found in the selection.",
+                "Sum selection",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        double sum = numbers.Sum();
+        string sumText = sum.ToString(CultureInfo.InvariantCulture);
+        string insertionText = GetInsertionText(selectedText, sumText);
+
+        var insertionPosition = EditorBox.Selection.End;
+        if (!insertionPosition.IsAtInsertionPosition)
+            insertionPosition = insertionPosition.GetInsertionPosition(LogicalDirection.Forward) ?? insertionPosition;
+
+        var insertionRange = new TextRange(insertionPosition, insertionPosition);
+        insertionRange.Text = insertionText;
+
+        EditorBox.CaretPosition = insertionRange.End;
+        EditorBox.Focus();
+        MarkDirty();
+        ScheduleMarkdownPreviewUpdate();
+    }
+
+    private static List<double> ExtractNumbersFromSelection(string selectedText)
+    {
+        var numbers = new List<double>();
+
+        foreach (Match match in NumberRegex.Matches(selectedText))
+        {
+            if (double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+                numbers.Add(value);
+        }
+
+        return numbers;
+    }
+
+    private static string GetInsertionText(string selectedText, string sumText)
+    {
+        bool containsNewLine = selectedText.Contains('\n') || selectedText.Contains('\r');
+        if (containsNewLine)
+        {
+            if (selectedText.EndsWith("\n") || selectedText.EndsWith("\r"))
+                return sumText;
+
+            return Environment.NewLine + sumText;
+        }
+
+        char lastChar = selectedText.LastOrDefault();
+        if (lastChar == ',')
+            return " " + sumText;
+
+        if (lastChar != default && !char.IsWhiteSpace(lastChar))
+            return " " + sumText;
+
+        return sumText;
     }
 
     private void InitializePreferredInputLanguages()

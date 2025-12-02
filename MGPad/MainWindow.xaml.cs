@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Globalization;
@@ -81,7 +82,9 @@ public partial class MainWindow : Window
     {
         public string Text { get; set; } = string.Empty;
         public bool IsBold { get; set; }
+        public bool IsItalic { get; set; }
         public bool IsUnderline { get; set; }
+        public bool IsStrikethrough { get; set; }
     }
 
     private sealed class PdfParagraph
@@ -1014,13 +1017,17 @@ public partial class MainWindow : Window
                     continue;
 
                 bool isBold = run.FontWeight == FontWeights.Bold;
+                bool isItalic = run.FontStyle == FontStyles.Italic;
                 bool isUnderline = run.TextDecorations?.Contains(TextDecorations.Underline[0]) == true;
+                bool isStrikethrough = run.TextDecorations?.Contains(TextDecorations.Strikethrough[0]) == true;
 
                 pdfParagraph.Runs.Add(new PdfTextRun
                 {
                     Text = text,
                     IsBold = isBold,
-                    IsUnderline = isUnderline
+                    IsItalic = isItalic,
+                    IsUnderline = isUnderline,
+                    IsStrikethrough = isStrikethrough
                 });
             }
             else if (inline is LineBreak)
@@ -1107,11 +1114,10 @@ public partial class MainWindow : Window
         PdfPage page = document.AddPage();
         XGraphics gfx = XGraphics.FromPdfPage(page);
 
-        // Basic fonts
-        XFont regularFont = new XFont("Segoe UI", 12, XFontStyle.Regular);
-        XFont boldFont = new XFont("Segoe UI", 12, XFontStyle.Bold);
-        XFont underlineFont = new XFont("Segoe UI", 12, XFontStyle.Underline);
-        XFont boldUnderlineFont = new XFont("Segoe UI", 12, XFontStyle.Bold | XFontStyle.Underline);
+        string fontFamily = "Segoe UI";
+        double fontSize = 12;
+        var fontCache = new Dictionary<XFontStyle, XFont>();
+        XFont regularFont = GetOrCreateFont(fontCache, fontFamily, fontSize, XFontStyle.Regular);
 
         // Layout: 1-inch margins (72 points per inch)
         double marginLeft = 72;
@@ -1123,16 +1129,9 @@ public partial class MainWindow : Window
         foreach (var paragraph in paragraphs)
         {
             // For simplicity, choose a font based on the first run that has formatting
-            bool anyBold = paragraph.Runs.Any(r => r.IsBold);
-            bool anyUnderline = paragraph.Runs.Any(r => r.IsUnderline);
-
-            XFont fontToUse = regularFont;
-            if (anyBold && anyUnderline)
-                fontToUse = boldUnderlineFont;
-            else if (anyBold)
-                fontToUse = boldFont;
-            else if (anyUnderline)
-                fontToUse = underlineFont;
+            XFont fontToUse = paragraph.Runs.Count > 0
+                ? GetFontForRun(paragraph.Runs[0], fontCache, fontFamily, fontSize)
+                : regularFont;
 
             double lineHeight = fontToUse.GetHeight(gfx) * 1.4;
             double usableWidth = page.Width - marginLeft - marginRight;
@@ -1141,10 +1140,7 @@ public partial class MainWindow : Window
                 paragraph.Runs,
                 gfx,
                 usableWidth,
-                regularFont,
-                boldFont,
-                underlineFont,
-                boldUnderlineFont);
+                run => GetFontForRun(run, fontCache, fontFamily, fontSize));
 
             foreach (var line in wrappedLines)
             {
@@ -1186,10 +1182,7 @@ public partial class MainWindow : Window
         IEnumerable<PdfTextRun> runs,
         XGraphics gfx,
         double maxWidth,
-        XFont regularFont,
-        XFont boldFont,
-        XFont underlineFont,
-        XFont boldUnderlineFont)
+        Func<PdfTextRun, XFont> fontSelector)
     {
         var lines = new List<List<PdfLineSpan>>();
         var currentLine = new List<PdfLineSpan>();
@@ -1245,7 +1238,7 @@ public partial class MainWindow : Window
 
         foreach (var run in runs)
         {
-            XFont font = GetFontForRun(run, regularFont, boldFont, underlineFont, boldUnderlineFont);
+            XFont font = fontSelector(run);
             string normalized = run.Text.Replace("\r\n", "\n");
             string[] segments = normalized.Split('\n');
 
@@ -1294,16 +1287,39 @@ public partial class MainWindow : Window
         return lines;
     }
 
-    private static XFont GetFontForRun(PdfTextRun run, XFont regularFont, XFont boldFont, XFont underlineFont, XFont boldUnderlineFont)
+    private static XFont GetFontForRun(
+        PdfTextRun run,
+        Dictionary<XFontStyle, XFont> fontCache,
+        string fontFamily,
+        double fontSize)
     {
-        if (run.IsBold && run.IsUnderline)
-            return boldUnderlineFont;
-        if (run.IsBold)
-            return boldFont;
-        if (run.IsUnderline)
-            return underlineFont;
+        XFontStyle style = XFontStyle.Regular;
 
-        return regularFont;
+        if (run.IsBold)
+            style |= XFontStyle.Bold;
+        if (run.IsItalic)
+            style |= XFontStyle.Italic;
+        if (run.IsUnderline)
+            style |= XFontStyle.Underline;
+        if (run.IsStrikethrough)
+            style |= XFontStyle.Strikeout;
+
+        return GetOrCreateFont(fontCache, fontFamily, fontSize, style);
+    }
+
+    private static XFont GetOrCreateFont(
+        Dictionary<XFontStyle, XFont> fontCache,
+        string fontFamily,
+        double fontSize,
+        XFontStyle style)
+    {
+        if (!fontCache.TryGetValue(style, out var font))
+        {
+            font = new XFont(fontFamily, fontSize, style);
+            fontCache[style] = font;
+        }
+
+        return font;
     }
 
     private IEnumerable<string> TokenizeSegment(string text)

@@ -5,6 +5,7 @@ using System.IO;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Text;
@@ -1839,7 +1840,7 @@ public partial class MainWindow : Window
 
     private void EditorBox_SelectionChanged(object sender, RoutedEventArgs e)
     {
-        UpdateFontControlsFromSelection();
+        UpdateFormattingControls();
     }
 
     private void PopulateFontControls()
@@ -2002,6 +2003,8 @@ public partial class MainWindow : Window
         {
             selection.ApplyPropertyValue(Inline.FontWeightProperty, FontWeights.Bold);
         }
+
+        UpdateFormattingControls();
     }
 
     private void ToggleUnderline()
@@ -2025,6 +2028,8 @@ public partial class MainWindow : Window
             // Apply underline
             selection.ApplyPropertyValue(Inline.TextDecorationsProperty, TextDecorations.Underline);
         }
+
+        UpdateFormattingControls();
     }
 
     private void ToggleStrikethrough()
@@ -2056,6 +2061,8 @@ public partial class MainWindow : Window
             };
             selection.ApplyPropertyValue(Inline.TextDecorationsProperty, updated);
         }
+
+        UpdateFormattingControls();
     }
 
     private void ToggleMonospaced()
@@ -2070,6 +2077,8 @@ public partial class MainWindow : Window
         selection.ApplyPropertyValue(
             Inline.FontFamilyProperty,
             isMonospaced ? GetBodyFontFamily() : GetMonoFontFamily());
+
+        UpdateFormattingControls();
     }
 
     private void ToggleItalic()
@@ -2088,6 +2097,8 @@ public partial class MainWindow : Window
         {
             selection.ApplyPropertyValue(Inline.FontStyleProperty, FontStyles.Italic);
         }
+
+        UpdateFormattingControls();
     }
 
     private void ToggleBulletedList()
@@ -2203,15 +2214,30 @@ public partial class MainWindow : Window
         bool canFormat = CanFormat();
 
         if (BoldButton != null)
+        {
             BoldButton.IsEnabled = canFormat;
+            BoldButton.IsChecked = canFormat && IsSelectionBold();
+        }
         if (ItalicButton != null)
+        {
             ItalicButton.IsEnabled = canFormat;
+            ItalicButton.IsChecked = canFormat && IsSelectionItalic();
+        }
         if (UnderlineButton != null)
+        {
             UnderlineButton.IsEnabled = canFormat;
+            UnderlineButton.IsChecked = canFormat && IsSelectionUnderlined();
+        }
         if (StrikethroughButton != null)
+        {
             StrikethroughButton.IsEnabled = canFormat;
+            StrikethroughButton.IsChecked = canFormat && IsSelectionStruckThrough();
+        }
         if (MonospacedButton != null)
+        {
             MonospacedButton.IsEnabled = canFormat;
+            MonospacedButton.IsChecked = canFormat && IsSelectionMonospaced();
+        }
         if (BulletedListButton != null)
             BulletedListButton.IsEnabled = canFormat;
         if (NumberedListButton != null)
@@ -2224,6 +2250,53 @@ public partial class MainWindow : Window
             AlignRightButton.IsEnabled = canFormat;
 
         UpdateFontControlsFromSelection();
+    }
+
+    private bool IsSelectionBold()
+    {
+        if (EditorBox == null)
+            return false;
+
+        object weight = EditorBox.Selection.GetPropertyValue(Inline.FontWeightProperty);
+        return weight is FontWeight fontWeight && fontWeight == FontWeights.Bold;
+    }
+
+    private bool IsSelectionItalic()
+    {
+        if (EditorBox == null)
+            return false;
+
+        object style = EditorBox.Selection.GetPropertyValue(Inline.FontStyleProperty);
+        return style is FontStyle fontStyle && fontStyle == FontStyles.Italic;
+    }
+
+    private bool IsSelectionUnderlined()
+    {
+        if (EditorBox == null)
+            return false;
+
+        var decorations = EditorBox.Selection.GetPropertyValue(Inline.TextDecorationsProperty)
+            as TextDecorationCollection;
+        return decorations != null && decorations.Contains(TextDecorations.Underline[0]);
+    }
+
+    private bool IsSelectionStruckThrough()
+    {
+        if (EditorBox == null)
+            return false;
+
+        var decorations = EditorBox.Selection.GetPropertyValue(Inline.TextDecorationsProperty)
+            as TextDecorationCollection;
+        return decorations != null && decorations.Any(d => d.Location == TextDecorationLocation.Strikethrough);
+    }
+
+    private bool IsSelectionMonospaced()
+    {
+        if (EditorBox == null)
+            return false;
+
+        object family = EditorBox.Selection.GetPropertyValue(Inline.FontFamilyProperty);
+        return family is FontFamily fontFamily && IsMonospacedFont(fontFamily);
     }
 
     private void AlignLeftButton_Click(object sender, RoutedEventArgs e)

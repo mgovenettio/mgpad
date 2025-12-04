@@ -84,8 +84,8 @@ public partial class MainWindow : Window
 
     private sealed class StyleConfiguration
     {
-        public string BodyFontFamily { get; init; } = "Segoe UI";
-        public string MonoFontFamily { get; init; } = "Consolas, 'MS Gothic'";
+        public string BodyFontFamily { get; init; } = "Segoe UI, 'Yu Gothic UI'";
+        public string MonoFontFamily { get; init; } = "Cascadia Code, Consolas, 'MS Gothic'";
     }
 
     private readonly StyleConfiguration _styleConfiguration = new();
@@ -1347,6 +1347,13 @@ public partial class MainWindow : Window
         return lines;
     }
 
+    private static string GetFontFamilyForRun(PdfTextRun run, StyleConfiguration styleConfiguration)
+    {
+        return run.IsMonospaced
+            ? styleConfiguration.MonoFontFamily
+            : styleConfiguration.BodyFontFamily;
+    }
+
     private static XFont GetFontForRun(
         PdfTextRun run,
         Dictionary<(string Family, XFontStyle Style), XFont> fontCache,
@@ -1364,9 +1371,7 @@ public partial class MainWindow : Window
         if (run.IsStrikethrough)
             style |= XFontStyle.Strikeout;
 
-        string selectedFamily = run.IsMonospaced
-            ? styleConfiguration.MonoFontFamily
-            : styleConfiguration.BodyFontFamily;
+        string selectedFamily = GetFontFamilyForRun(run, styleConfiguration);
 
         return GetOrCreateFont(fontCache, selectedFamily, fontSize, style);
     }

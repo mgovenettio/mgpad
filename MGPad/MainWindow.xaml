@@ -22,9 +22,6 @@
         <KeyBinding Command="{x:Static local:MainWindow.ToggleStrikethroughCommand}"
                     Modifiers="Control+Shift"
                     Key="X" />
-        <KeyBinding Command="{x:Static local:MainWindow.ToggleMonospacedCommand}"
-                    Modifiers="Control+Shift"
-                    Key="M" />
     </Window.InputBindings>
     <Window.CommandBindings>
         <CommandBinding Command="ApplicationCommands.New"
@@ -163,6 +160,11 @@
                              VerticalScrollBarVisibility="Auto"
                              AcceptsTab="True"
                              TextChanged="EditorBox_TextChanged">
+                    <RichTextBox.InputBindings>
+                        <KeyBinding Command="{x:Static local:MainWindow.ToggleMonospacedCommand}"
+                                    Modifiers="Control+Shift"
+                                    Key="M" />
+                    </RichTextBox.InputBindings>
                     <RichTextBox.Resources>
                         <Style TargetType="Paragraph">
                             <Setter Property="Margin" Value="0" />

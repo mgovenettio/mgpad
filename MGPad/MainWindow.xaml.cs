@@ -184,19 +184,6 @@ public partial class MainWindow : Window
                 MarkDirty();
                 e.Handled = true;
             }));
-        CommandBindings.Add(new CommandBinding(ToggleMonospacedCommand,
-            (s, e) =>
-            {
-                if (!CanFormat())
-                {
-                    e.Handled = true;
-                    return;
-                }
-
-                ToggleMonospaced();
-                MarkDirty();
-                e.Handled = true;
-            }));
         CommandBindings.Add(new CommandBinding(ToggleStrikethroughCommand,
             (s, e) =>
             {
@@ -224,6 +211,14 @@ public partial class MainWindow : Window
         {
             EditorBox.SelectionChanged += EditorBox_SelectionChanged;
             EditorBox.PreviewKeyDown += EditorBox_PreviewKeyDown;
+            EditorBox.CommandBindings.Add(new CommandBinding(
+                ToggleMonospacedCommand,
+                (s, e) =>
+                {
+                    ToggleMonospacedFromUi();
+                    e.Handled = true;
+                },
+                (s, e) => e.CanExecute = CanFormat()));
         }
 
         if (_englishInputLanguage == null || _japaneseInputLanguage == null)
@@ -2081,6 +2076,15 @@ public partial class MainWindow : Window
         UpdateFormattingControls();
     }
 
+    private void ToggleMonospacedFromUi()
+    {
+        if (!CanFormat())
+            return;
+
+        ToggleMonospaced();
+        MarkDirty();
+    }
+
     private void ToggleItalic()
     {
         if (EditorBox == null || !CanFormat())
@@ -2155,11 +2159,7 @@ public partial class MainWindow : Window
 
     private void MonospacedButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!CanFormat())
-            return;
-
-        ToggleMonospaced();
-        MarkDirty();
+        ToggleMonospacedFromUi();
     }
 
     private void BulletedListButton_Click(object sender, RoutedEventArgs e)

@@ -110,11 +110,14 @@
         </Menu>
         <ToolBarTray Grid.Row="1">
             <ToolBar>
-                <Button x:Name="BoldButton" Content="B" Click="BoldButton_Click" />
-                <Button x:Name="ItalicButton" Content="I" Click="ItalicButton_Click" />
-                <Button x:Name="UnderlineButton" Content="U" Click="UnderlineButton_Click" />
-                <Button x:Name="StrikethroughButton" Content="S" Click="StrikethroughButton_Click" />
-                <Button x:Name="MonospacedButton" Content="Mono" Click="MonospacedButton_Click" />
+                <ToggleButton x:Name="BoldButton" Content="B" Click="BoldButton_Click" />
+                <ToggleButton x:Name="ItalicButton" Content="I" Click="ItalicButton_Click" />
+                <ToggleButton x:Name="UnderlineButton" Content="U" Click="UnderlineButton_Click" />
+                <ToggleButton x:Name="MonospacedButton"
+                              Content="Monospace"
+                              ToolTip="Toggle monospaced (even-spacing) font. Shortcut: Ctrl+Shift+M"
+                              Click="MonospacedButton_Click" />
+                <ToggleButton x:Name="StrikethroughButton" Content="S" Click="StrikethroughButton_Click" />
                 <Separator />
                 <Button x:Name="BulletedListButton" Content="•" Click="BulletedListButton_Click" />
                 <Button x:Name="NumberedListButton" Content="1." Click="NumberedListButton_Click" />

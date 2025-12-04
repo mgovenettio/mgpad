@@ -88,7 +88,16 @@ public partial class MainWindow : Window
 
     private sealed class StyleConfiguration
     {
+        // Body and mono font stacks prefer Windows defaults while including explicit Japanese
+        // fallbacks.  The comma-separated list follows the same syntax as CSS font-family:
+        // choose the first installed face and fall back to later entries when characters (e.g.,
+        // CJK glyphs) are missing.  This keeps Unicode-heavy notes readable without requiring
+        // the exact font set from the authoring machine.
         public string BodyFontFamily { get; init; } = "Segoe UI, 'Yu Gothic UI'";
+
+        // Monospaced stack favors Cascadia Code/Cascadia Mono, then Consolas, and finally MS
+        // Gothic so code snippets remain aligned even on systems that only have Japanese-centric
+        // fonts available.
         public string MonoFontFamily { get; init; } = "Cascadia Code, Consolas, 'MS Gothic'";
     }
 
@@ -105,6 +114,10 @@ public partial class MainWindow : Window
         public bool IsItalic { get; set; }
         public bool IsUnderline { get; set; }
         public bool IsStrikethrough { get; set; }
+
+        // Flag propagated through the UI toggle, PDF export, and ODT serialization paths to mark
+        // code-like spans.  When true, the run always uses the configured monospaced stack instead
+        // of inheriting the surrounding paragraph font.
         public bool IsMonospaced { get; set; }
     }
 
@@ -648,6 +661,10 @@ public partial class MainWindow : Window
             ? LoadXmlFromEntry(stylesEntry)
             : null;
 
+        // ODT stores formatting via named text styles and optional font-face definitions.  We
+        // collect every known style from content.xml and styles.xml, augment it with a curated list
+        // of monospaced font families (to avoid missing glyphs on non-English systems), and then
+        // resolve each span by merging inherited styles as we walk the tree.
         var monospacedFamilies = GetKnownMonospacedFamilies();
         var styles = new Dictionary<string, OdtTextStyle>(StringComparer.OrdinalIgnoreCase);
 
@@ -1776,6 +1793,10 @@ public partial class MainWindow : Window
 
         var automaticStyles = new List<XElement>();
 
+        // When serializing to ODT we emit two named text styles: Text (body font) and Code (mono
+        // font).  Runs marked IsMonospaced are mapped to Code; everything else uses Text.  The font
+        // faces are written into styles.xml so consumers that lack the primary font can still fall
+        // back to the Japanese-friendly alternates listed in StyleConfiguration.
         var contentDoc = new XDocument(
             new XDeclaration("1.0", "UTF-8", "yes"),
             new XElement(office + "document-content",
@@ -2597,6 +2618,9 @@ public partial class MainWindow : Window
         if (EditorBox == null || !CanFormat())
             return;
 
+        // The UI command flips the font family between the body stack and the mono stack.  This
+        // is the single toggle used by the toolbar, keyboard shortcut (Ctrl+Shift+M), and context
+        // menu; downstream exports and ODT serialization read the IsMonospaced flag set here.
         TextSelection selection = EditorBox.Selection;
         object currentFamily = selection.GetPropertyValue(Inline.FontFamilyProperty);
         bool isMonospaced = currentFamily != DependencyProperty.UnsetValue

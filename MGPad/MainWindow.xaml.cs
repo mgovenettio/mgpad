@@ -2599,11 +2599,21 @@ public partial class MainWindow : Window
 
         TextSelection selection = EditorBox.Selection;
         object currentFamily = selection.GetPropertyValue(Inline.FontFamilyProperty);
-        bool isMonospaced = currentFamily is FontFamily family && IsMonospacedFont(family);
+        bool isMonospaced = currentFamily != DependencyProperty.UnsetValue
+            && currentFamily is FontFamily family
+            && IsMonospacedFont(family);
 
-        selection.ApplyPropertyValue(
-            Inline.FontFamilyProperty,
-            isMonospaced ? GetBodyFontFamily() : GetMonoFontFamily());
+        EditorBox.BeginChange();
+        try
+        {
+            selection.ApplyPropertyValue(
+                Inline.FontFamilyProperty,
+                isMonospaced ? GetBodyFontFamily() : GetMonoFontFamily());
+        }
+        finally
+        {
+            EditorBox.EndChange();
+        }
 
         UpdateFormattingControls();
     }

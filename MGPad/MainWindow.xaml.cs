@@ -25,7 +25,8 @@ public enum DocumentType
 {
     RichText,
     PlainText,
-    Markdown
+    Markdown,
+    OpenDocument
 }
 
 public partial class MainWindow : Window
@@ -533,6 +534,310 @@ public partial class MainWindow : Window
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
         range.Load(stream, DataFormats.Rtf);
         ApplyTheme();
+    }
+
+    private sealed record OdtTextStyle(
+        bool Bold,
+        bool Italic,
+        bool Underline,
+        string? FontFamily,
+        bool IsMonospaced);
+
+    private HashSet<string> GetKnownMonospacedFamilies()
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Cascadia Code",
+            "Cascadia Mono",
+            "Consolas",
+            "Courier New",
+            "JetBrains Mono",
+            "Liberation Mono",
+            "Lucida Console",
+            "Menlo",
+            "Monaco",
+            "Roboto Mono",
+            "Source Code Pro"
+        };
+
+        foreach (var family in _styleConfiguration.MonoFontFamily.Split(','))
+        {
+            string cleaned = family.Trim().Trim('\'', '"');
+            if (!string.IsNullOrWhiteSpace(cleaned))
+            {
+                result.Add(cleaned);
+            }
+        }
+
+        return result;
+    }
+
+    private void LoadOdtIntoEditor(string path)
+    {
+        if (EditorBox == null)
+            return;
+
+        try
+        {
+            var paragraphs = ParseOdtDocument(path);
+            var document = CreateStyledDocument();
+
+            foreach (var paragraph in paragraphs)
+            {
+                var wpfParagraph = new Paragraph();
+
+                foreach (var run in paragraph.Runs)
+                {
+                    AppendRunToParagraph(wpfParagraph, run);
+                }
+
+                document.Blocks.Add(wpfParagraph);
+            }
+
+            EditorBox.Document = document;
+            ApplyTheme();
+        }
+        catch
+        {
+            var text = File.ReadAllText(path);
+            SetEditorPlainText(text);
+        }
+    }
+
+    private void AppendRunToParagraph(Paragraph paragraph, PdfTextRun run)
+    {
+        string[] segments = run.Text.Replace("\r\n", "\n").Split('\n');
+        for (int i = 0; i < segments.Length; i++)
+        {
+            if (segments[i].Length > 0)
+            {
+                var wpfRun = new Run(segments[i]);
+
+                if (run.IsBold)
+                    wpfRun.FontWeight = FontWeights.Bold;
+                if (run.IsItalic)
+                    wpfRun.FontStyle = FontStyles.Italic;
+                if (run.IsUnderline)
+                    wpfRun.TextDecorations = TextDecorations.Underline;
+                if (run.IsStrikethrough)
+                {
+                    var decorations = wpfRun.TextDecorations ?? new TextDecorationCollection();
+                    decorations.Add(TextDecorations.Strikethrough[0]);
+                    wpfRun.TextDecorations = decorations;
+                }
+                if (run.IsMonospaced)
+                    wpfRun.FontFamily = GetMonoFontFamily();
+
+                paragraph.Inlines.Add(wpfRun);
+            }
+
+            if (i < segments.Length - 1)
+            {
+                paragraph.Inlines.Add(new LineBreak());
+            }
+        }
+    }
+
+    private List<PdfParagraph> ParseOdtDocument(string path)
+    {
+        using var archive = ZipFile.OpenRead(path);
+        var contentEntry = archive.GetEntry("content.xml") ?? throw new InvalidOperationException("content.xml missing");
+
+        XDocument contentDoc = LoadXmlFromEntry(contentEntry);
+        XDocument? stylesDoc = archive.GetEntry("styles.xml") is { } stylesEntry
+            ? LoadXmlFromEntry(stylesEntry)
+            : null;
+
+        var monospacedFamilies = GetKnownMonospacedFamilies();
+        var styles = new Dictionary<string, OdtTextStyle>(StringComparer.OrdinalIgnoreCase);
+
+        MergeOdtStyles(styles, contentDoc, monospacedFamilies);
+        if (stylesDoc != null)
+        {
+            MergeOdtStyles(styles, stylesDoc, monospacedFamilies);
+        }
+
+        var paragraphs = new List<PdfParagraph>();
+        XNamespace text = contentDoc.Root?.GetNamespaceOfPrefix("text") ?? "text";
+
+        foreach (var paragraph in contentDoc.Descendants(text + "p"))
+        {
+            var pdfParagraph = new PdfParagraph();
+
+            foreach (var node in paragraph.Nodes())
+            {
+                AppendRunsFromOdtNode(node, pdfParagraph.Runs, styles, text, null);
+            }
+
+            if (pdfParagraph.Runs.Count > 0)
+            {
+                paragraphs.Add(pdfParagraph);
+            }
+        }
+
+        return paragraphs;
+    }
+
+    private static XDocument LoadXmlFromEntry(ZipArchiveEntry entry)
+    {
+        using var stream = entry.Open();
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        return XDocument.Load(reader);
+    }
+
+    private void MergeOdtStyles(
+        Dictionary<string, OdtTextStyle> accumulator,
+        XDocument document,
+        HashSet<string> monospacedFamilies)
+    {
+        var fontFaces = ParseFontFaces(document);
+        foreach (var (name, style) in ParseTextStyles(document, fontFaces, monospacedFamilies))
+        {
+            accumulator[name] = style;
+        }
+    }
+
+    private Dictionary<string, string> ParseFontFaces(XDocument document)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        XNamespace style = document.Root?.GetNamespaceOfPrefix("style") ?? "style";
+        XNamespace svg = document.Root?.GetNamespaceOfPrefix("svg") ?? "svg";
+
+        foreach (var fontFace in document.Descendants(style + "font-face"))
+        {
+            string? name = (string?)fontFace.Attribute(style + "name");
+            string? family = (string?)fontFace.Attribute(svg + "font-family")
+                ?? (string?)fontFace.Attribute(style + "font-family-generic");
+
+            if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(family))
+            {
+                result[name] = family.Trim('\"', '\'');
+            }
+        }
+
+        return result;
+    }
+
+    private Dictionary<string, OdtTextStyle> ParseTextStyles(
+        XDocument document,
+        Dictionary<string, string> fontFaces,
+        HashSet<string> monospacedFamilies)
+    {
+        var styles = new Dictionary<string, OdtTextStyle>(StringComparer.OrdinalIgnoreCase);
+
+        XNamespace style = document.Root?.GetNamespaceOfPrefix("style") ?? "style";
+        XNamespace fo = document.Root?.GetNamespaceOfPrefix("fo") ?? "fo";
+
+        foreach (var styleElement in document.Descendants(style + "style"))
+        {
+            string? name = (string?)styleElement.Attribute(style + "name");
+            string? family = (string?)styleElement.Attribute(style + "family");
+            if (string.IsNullOrEmpty(name) || !string.Equals(family, "text", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var textProps = styleElement.Element(style + "text-properties");
+            bool isBold = string.Equals((string?)textProps?.Attribute(fo + "font-weight"), "bold", StringComparison.OrdinalIgnoreCase);
+            bool isItalic = string.Equals((string?)textProps?.Attribute(fo + "font-style"), "italic", StringComparison.OrdinalIgnoreCase);
+            bool isUnderline = textProps?.Attribute(style + "text-underline-style") != null;
+
+            string? fontName = (string?)textProps?.Attribute(style + "font-name");
+            string? fontFamily = fontName != null && fontFaces.TryGetValue(fontName, out var resolved)
+                ? resolved
+                : (string?)textProps?.Attribute(fo + "font-family");
+            fontFamily = fontFamily?.Trim('\"', '\'');
+
+            bool monospacedByName = string.Equals(name, "Code", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "Mono", StringComparison.OrdinalIgnoreCase);
+            bool monospacedByFont = !string.IsNullOrEmpty(fontFamily) && monospacedFamilies.Contains(fontFamily);
+
+            styles[name] = new OdtTextStyle(
+                isBold,
+                isItalic,
+                isUnderline,
+                fontFamily,
+                monospacedByName || monospacedByFont);
+        }
+
+        return styles;
+    }
+
+    private void AppendRunsFromOdtNode(
+        XNode node,
+        List<PdfTextRun> runs,
+        Dictionary<string, OdtTextStyle> styles,
+        XNamespace text,
+        OdtTextStyle? currentStyle)
+    {
+        if (node is XText textNode)
+        {
+            if (!string.IsNullOrEmpty(textNode.Value))
+            {
+                runs.Add(CreateRunFromOdtText(textNode.Value, currentStyle));
+            }
+            return;
+        }
+
+        if (node is not XElement element)
+            return;
+
+        if (element.Name == text + "span")
+        {
+            string? styleName = (string?)element.Attribute(text + "style-name");
+            styles.TryGetValue(styleName ?? string.Empty, out var styleFromSpan);
+            var merged = MergeStyles(currentStyle, styleFromSpan);
+
+            foreach (var child in element.Nodes())
+            {
+                AppendRunsFromOdtNode(child, runs, styles, text, merged);
+            }
+            return;
+        }
+
+        if (element.Name == text + "s")
+        {
+            int count = (int?)element.Attribute(text + "c") ?? 1;
+            runs.Add(CreateRunFromOdtText(new string(' ', Math.Max(1, count)), currentStyle));
+            return;
+        }
+
+        if (element.Name == text + "line-break")
+        {
+            runs.Add(CreateRunFromOdtText("\n", currentStyle));
+            return;
+        }
+
+        foreach (var child in element.Nodes())
+        {
+            AppendRunsFromOdtNode(child, runs, styles, text, currentStyle);
+        }
+    }
+
+    private PdfTextRun CreateRunFromOdtText(string text, OdtTextStyle? style)
+    {
+        return new PdfTextRun
+        {
+            Text = text,
+            IsBold = style?.Bold ?? false,
+            IsItalic = style?.Italic ?? false,
+            IsUnderline = style?.Underline ?? false,
+            IsStrikethrough = false,
+            IsMonospaced = style?.IsMonospaced ?? false
+        };
+    }
+
+    private OdtTextStyle MergeStyles(OdtTextStyle? baseStyle, OdtTextStyle? overrideStyle)
+    {
+        if (baseStyle == null)
+            return overrideStyle ?? new OdtTextStyle(false, false, false, null, false);
+        if (overrideStyle == null)
+            return baseStyle;
+
+        return new OdtTextStyle(
+            baseStyle.Bold || overrideStyle.Bold,
+            baseStyle.Italic || overrideStyle.Italic,
+            baseStyle.Underline || overrideStyle.Underline,
+            overrideStyle.FontFamily ?? baseStyle.FontFamily,
+            baseStyle.IsMonospaced || overrideStyle.IsMonospaced);
     }
 
     private string GetEditorPlainText()
@@ -1735,7 +2040,7 @@ public partial class MainWindow : Window
 
         var dialog = new OpenFileDialog
         {
-            Filter = "Text Documents (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|Markdown Files (*.md)|*.md|All files (*.*)|*.*"
+            Filter = "Text Documents (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|Markdown Files (*.md)|*.md|OpenDocument Text (*.odt)|*.odt|All files (*.*)|*.*"
         };
 
         if (!string.IsNullOrEmpty(_currentFilePath))
@@ -1770,6 +2075,7 @@ public partial class MainWindow : Window
         {
             DocumentType.RichText => ".rtf",
             DocumentType.Markdown => ".md",
+            DocumentType.OpenDocument => ".odt",
             _ => ".txt"
         };
     }
@@ -1781,6 +2087,7 @@ public partial class MainWindow : Window
             DocumentType.PlainText => 1,
             DocumentType.RichText => 2,
             DocumentType.Markdown => 3,
+            DocumentType.OpenDocument => 4,
             _ => 1
         };
     }
@@ -1796,6 +2103,11 @@ public partial class MainWindow : Window
                 var text = File.ReadAllText(path);
                 SetEditorPlainText(text);
                 SetMarkdownMode(true);
+            }
+            else if (documentType == DocumentType.OpenDocument)
+            {
+                LoadOdtIntoEditor(path);
+                SetMarkdownMode(false);
             }
             else if (documentType == DocumentType.RichText)
             {
@@ -1844,6 +2156,11 @@ public partial class MainWindow : Window
                 File.WriteAllText(path, text);
                 SetMarkdownMode(true);
             }
+            else if (documentType == DocumentType.OpenDocument)
+            {
+                ExportDocumentToOdt(path);
+                SetMarkdownMode(false);
+            }
             else
             {
                 var text = GetEditorPlainText();
@@ -1870,6 +2187,7 @@ public partial class MainWindow : Window
         {
             ".rtf" => DocumentType.RichText,
             ".md" => DocumentType.Markdown,
+            ".odt" => DocumentType.OpenDocument,
             _ => DocumentType.PlainText
         };
     }
@@ -1892,7 +2210,7 @@ public partial class MainWindow : Window
 
         var dialog = new SaveFileDialog
         {
-            Filter = "Text Documents (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|Markdown Files (*.md)|*.md|All files (*.*)|*.*",
+            Filter = "Text Documents (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|Markdown Files (*.md)|*.md|OpenDocument Text (*.odt)|*.odt|All files (*.*)|*.*",
             AddExtension = true,
             DefaultExt = GetExtensionForDocumentType(dialogDocumentType),
             FilterIndex = GetFilterIndexForDocumentType(dialogDocumentType)
@@ -2396,7 +2714,8 @@ public partial class MainWindow : Window
 
     private bool CanFormat()
     {
-        return _currentDocumentType == DocumentType.RichText;
+        return _currentDocumentType == DocumentType.RichText
+            || _currentDocumentType == DocumentType.OpenDocument;
     }
 
     private System.Windows.Documents.List? GetAncestorList(TextPointer position)

@@ -1,19 +1,21 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.IO;
 using System.Globalization;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
-using System.Text;
-using System.Linq;
-using System.Text.RegularExpressions;
-using Microsoft.Win32;
-using System.Windows.Threading;
 using System.Windows.Media;
+using System.Windows.Threading;
+using System.Xml.Linq;
+using Microsoft.Win32;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 
@@ -997,6 +999,43 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ExportOdtMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Export as ODT",
+                Filter = "OpenDocument Text (*.odt)|*.odt|All Files (*.*)|*.*",
+                DefaultExt = ".odt",
+                FileName = !string.IsNullOrEmpty(_currentFilePath)
+                    ? Path.GetFileNameWithoutExtension(_currentFilePath) + ".odt"
+                    : "Document.odt",
+            };
+
+            bool? result = dialog.ShowDialog(this);
+            if (result != true)
+                return;
+
+            string odtPath = dialog.FileName;
+            ExportDocumentToOdt(odtPath);
+
+            MessageBox.Show(this,
+                "ODT export completed:\n" + odtPath,
+                "Export as ODT",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                "Failed to export ODT.\n\n" + ex.Message,
+                "Export as ODT",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
     private List<PdfParagraph> ExtractParagraphsForPdf()
     {
         var result = new List<PdfParagraph>();
@@ -1417,6 +1456,181 @@ public partial class MainWindow : Window
 
         if (builder.Length > 0)
             yield return builder.ToString();
+    }
+
+    private void ExportDocumentToOdt(string odtPath)
+    {
+        var paragraphs = ExtractParagraphsForPdf();
+
+        XNamespace office = "urn:oasis:names:tc:opendocument:xmlns:office:1.0";
+        XNamespace style = "urn:oasis:names:tc:opendocument:xmlns:style:1.0";
+        XNamespace text = "urn:oasis:names:tc:opendocument:xmlns:text:1.0";
+        XNamespace fo = "urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0";
+        XNamespace svg = "urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0";
+        XNamespace manifest = "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0";
+
+        var automaticStyles = new List<XElement>();
+
+        var contentDoc = new XDocument(
+            new XDeclaration("1.0", "UTF-8", "yes"),
+            new XElement(office + "document-content",
+                new XAttribute(XNamespace.Xmlns + "office", office),
+                new XAttribute(XNamespace.Xmlns + "style", style),
+                new XAttribute(XNamespace.Xmlns + "text", text),
+                new XAttribute(XNamespace.Xmlns + "fo", fo),
+                new XElement(office + "automatic-styles", automaticStyles),
+                new XElement(office + "body",
+                    new XElement(office + "text",
+                        paragraphs.Select(p => CreateOdtParagraph(p, automaticStyles, text, style, fo))))));
+
+        var stylesDoc = new XDocument(
+            new XDeclaration("1.0", "UTF-8", "yes"),
+            new XElement(office + "document-styles",
+                new XAttribute(XNamespace.Xmlns + "office", office),
+                new XAttribute(XNamespace.Xmlns + "style", style),
+                new XAttribute(XNamespace.Xmlns + "svg", svg),
+                new XElement(office + "font-face-decls",
+                    new XElement(style + "font-face",
+                        new XAttribute(style + "name", "BodyFont"),
+                        new XAttribute(svg + "font-family", _styleConfiguration.BodyFontFamily)),
+                    new XElement(style + "font-face",
+                        new XAttribute(style + "name", "MonoFont"),
+                        new XAttribute(svg + "font-family", _styleConfiguration.MonoFontFamily))),
+                new XElement(office + "styles",
+                    new XElement(style + "style",
+                        new XAttribute(style + "name", "Text"),
+                        new XAttribute(style + "family", "text"),
+                        new XElement(style + "text-properties",
+                            new XAttribute(style + "font-name", "BodyFont"))),
+                    new XElement(style + "style",
+                        new XAttribute(style + "name", "Code"),
+                        new XAttribute(style + "family", "text"),
+                        new XElement(style + "text-properties",
+                            new XAttribute(style + "font-name", "MonoFont"))))));
+
+        var manifestDoc = new XDocument(
+            new XDeclaration("1.0", "UTF-8", "yes"),
+            new XElement(manifest + "manifest",
+                new XAttribute(XNamespace.Xmlns + "manifest", manifest),
+                new XAttribute(manifest + "version", "1.2"),
+                new XElement(manifest + "file-entry",
+                    new XAttribute(manifest + "full-path", "/"),
+                    new XAttribute(manifest + "media-type", "application/vnd.oasis.opendocument.text")),
+                new XElement(manifest + "file-entry",
+                    new XAttribute(manifest + "full-path", "content.xml"),
+                    new XAttribute(manifest + "media-type", "text/xml")),
+                new XElement(manifest + "file-entry",
+                    new XAttribute(manifest + "full-path", "styles.xml"),
+                    new XAttribute(manifest + "media-type", "text/xml"))));
+
+        using var archive = ZipFile.Open(odtPath, ZipArchiveMode.Create);
+
+        var mimeEntry = archive.CreateEntry("mimetype", CompressionLevel.NoCompression);
+        using (var mimeWriter = new StreamWriter(mimeEntry.Open(), new UTF8Encoding(false)))
+        {
+            mimeWriter.Write("application/vnd.oasis.opendocument.text");
+        }
+
+        WriteXmlEntry(archive, "content.xml", contentDoc);
+        WriteXmlEntry(archive, "styles.xml", stylesDoc);
+        WriteXmlEntry(archive, "META-INF/manifest.xml", manifestDoc);
+    }
+
+    private static void WriteXmlEntry(ZipArchive archive, string entryName, XDocument document)
+    {
+        var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+        using var entryStream = entry.Open();
+        using var writer = new StreamWriter(entryStream, new UTF8Encoding(false));
+        document.Save(writer);
+    }
+
+    private XElement CreateOdtParagraph(
+        PdfParagraph paragraph,
+        List<XElement> automaticStyles,
+        XNamespace text,
+        XNamespace style,
+        XNamespace fo)
+    {
+        var paragraphElement = new XElement(text + "p");
+
+        foreach (var run in paragraph.Runs)
+        {
+            AppendSpanElements(paragraphElement, run, automaticStyles, text, style, fo);
+        }
+
+        return paragraphElement;
+    }
+
+    private void AppendSpanElements(
+        XElement paragraphElement,
+        PdfTextRun run,
+        List<XElement> automaticStyles,
+        XNamespace text,
+        XNamespace style,
+        XNamespace fo)
+    {
+        string styleName = GetSpanStyleName(run, automaticStyles, style, fo);
+
+        string normalized = run.Text.Replace("\r\n", "\n");
+        string[] parts = normalized.Split('\n');
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(parts[i]))
+            {
+                paragraphElement.Add(new XElement(text + "span",
+                    new XAttribute(text + "style-name", styleName),
+                    parts[i]));
+            }
+
+            if (i < parts.Length - 1)
+            {
+                paragraphElement.Add(new XElement(text + "line-break"));
+            }
+        }
+    }
+
+    private string GetSpanStyleName(
+        PdfTextRun run,
+        List<XElement> automaticStyles,
+        XNamespace style,
+        XNamespace fo)
+    {
+        string baseStyle = run.IsMonospaced ? "Code" : "Text";
+
+        if (!run.IsBold && !run.IsItalic && !run.IsUnderline)
+            return baseStyle;
+
+        string styleName = baseStyle
+            + (run.IsBold ? "Bold" : string.Empty)
+            + (run.IsItalic ? "Italic" : string.Empty)
+            + (run.IsUnderline ? "Underline" : string.Empty);
+
+        bool exists = automaticStyles.Any(s => (string?)s.Attribute(style + "name") == styleName);
+        if (exists)
+            return styleName;
+
+        var properties = new List<XAttribute>();
+
+        if (run.IsBold)
+            properties.Add(new XAttribute(fo + "font-weight", "bold"));
+        if (run.IsItalic)
+            properties.Add(new XAttribute(fo + "font-style", "italic"));
+        if (run.IsUnderline)
+        {
+            properties.Add(new XAttribute(style + "text-underline-style", "solid"));
+            properties.Add(new XAttribute(style + "text-underline-type", "single"));
+            properties.Add(new XAttribute(style + "text-underline-width", "auto"));
+            properties.Add(new XAttribute(style + "text-underline-color", "font-color"));
+        }
+
+        automaticStyles.Add(new XElement(style + "style",
+            new XAttribute(style + "name", styleName),
+            new XAttribute(style + "family", "text"),
+            new XAttribute(style + "parent-style-name", baseStyle),
+            new XElement(style + "text-properties", properties)));
+
+        return styleName;
     }
 
     private void FileExit_Click(object sender, RoutedEventArgs e) => ExitApplication();

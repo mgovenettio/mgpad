@@ -22,6 +22,9 @@
         <KeyBinding Command="{x:Static local:MainWindow.ToggleStrikethroughCommand}"
                     Modifiers="Control+Shift"
                     Key="X" />
+        <KeyBinding Command="{x:Static local:MainWindow.ToggleMonospacedCommand}"
+                    Modifiers="Control+Shift"
+                    Key="M" />
     </Window.InputBindings>
     <Window.CommandBindings>
         <CommandBinding Command="ApplicationCommands.New"
@@ -111,6 +114,7 @@
                 <Button x:Name="ItalicButton" Content="I" Click="ItalicButton_Click" />
                 <Button x:Name="UnderlineButton" Content="U" Click="UnderlineButton_Click" />
                 <Button x:Name="StrikethroughButton" Content="S" Click="StrikethroughButton_Click" />
+                <Button x:Name="MonospacedButton" Content="Mono" Click="MonospacedButton_Click" />
                 <Separator />
                 <Button x:Name="BulletedListButton" Content="•" Click="BulletedListButton_Click" />
                 <Button x:Name="NumberedListButton" Content="1." Click="NumberedListButton_Click" />

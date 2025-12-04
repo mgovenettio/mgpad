@@ -39,6 +39,10 @@ public partial class MainWindow : Window
         new RoutedUICommand("ToggleUnderline", "ToggleUnderline", typeof(MainWindow),
             new InputGestureCollection { new KeyGesture(Key.U, ModifierKeys.Control) });
 
+    public static readonly RoutedUICommand ToggleMonospacedCommand =
+        new RoutedUICommand("ToggleMonospaced", "ToggleMonospaced", typeof(MainWindow),
+            new InputGestureCollection { new KeyGesture(Key.M, ModifierKeys.Control | ModifierKeys.Shift) });
+
     public static readonly RoutedUICommand ToggleStrikethroughCommand =
         new RoutedUICommand("ToggleStrikethrough", "ToggleStrikethrough", typeof(MainWindow),
             new InputGestureCollection { new KeyGesture(Key.X, ModifierKeys.Control | ModifierKeys.Shift) });
@@ -78,6 +82,18 @@ public partial class MainWindow : Window
         "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?",
         RegexOptions.Compiled);
 
+    private sealed class StyleConfiguration
+    {
+        public string BodyFontFamily { get; init; } = "Segoe UI";
+        public string MonoFontFamily { get; init; } = "Consolas, 'MS Gothic'";
+    }
+
+    private readonly StyleConfiguration _styleConfiguration = new();
+
+    private FontFamily GetBodyFontFamily() => new(_styleConfiguration.BodyFontFamily);
+
+    private FontFamily GetMonoFontFamily() => new(_styleConfiguration.MonoFontFamily);
+
     private sealed class PdfTextRun
     {
         public string Text { get; set; } = string.Empty;
@@ -85,6 +101,7 @@ public partial class MainWindow : Window
         public bool IsItalic { get; set; }
         public bool IsUnderline { get; set; }
         public bool IsStrikethrough { get; set; }
+        public bool IsMonospaced { get; set; }
     }
 
     private sealed class PdfParagraph
@@ -166,6 +183,19 @@ public partial class MainWindow : Window
                 MarkDirty();
                 e.Handled = true;
             }));
+        CommandBindings.Add(new CommandBinding(ToggleMonospacedCommand,
+            (s, e) =>
+            {
+                if (!CanFormat())
+                {
+                    e.Handled = true;
+                    return;
+                }
+
+                ToggleMonospaced();
+                MarkDirty();
+                e.Handled = true;
+            }));
         CommandBindings.Add(new CommandBinding(ToggleStrikethroughCommand,
             (s, e) =>
             {
@@ -207,6 +237,7 @@ public partial class MainWindow : Window
         }
 
         InitializeDocumentState();
+        ApplyDefaultStyleToCurrentDocument();
         UpdateFormattingControls();
         UpdateLanguageIndicator();
 
@@ -458,12 +489,36 @@ public partial class MainWindow : Window
         MarkdownPreviewTextBlock.Text = sb.ToString();
     }
 
+    private FlowDocument CreateStyledDocument()
+    {
+        return new FlowDocument
+        {
+            FontFamily = GetBodyFontFamily()
+        };
+    }
+
+    private void ApplyDefaultStyleToCurrentDocument()
+    {
+        if (EditorBox?.Document != null)
+        {
+            EditorBox.Document.FontFamily = GetBodyFontFamily();
+        }
+    }
+
+    private bool IsMonospacedFont(FontFamily family)
+    {
+        return string.Equals(
+            family.Source,
+            GetMonoFontFamily().Source,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
     private void SetEditorPlainText(string text)
     {
         if (EditorBox == null)
             return;
 
-        EditorBox.Document = new FlowDocument();
+        EditorBox.Document = CreateStyledDocument();
         var range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
         range.Text = text;
         ApplyTheme();
@@ -474,7 +529,7 @@ public partial class MainWindow : Window
         if (EditorBox == null)
             return;
 
-        EditorBox.Document = new FlowDocument();
+        EditorBox.Document = CreateStyledDocument();
         var range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
@@ -1020,6 +1075,7 @@ public partial class MainWindow : Window
                 bool isItalic = run.FontStyle == FontStyles.Italic;
                 bool isUnderline = run.TextDecorations?.Contains(TextDecorations.Underline[0]) == true;
                 bool isStrikethrough = run.TextDecorations?.Contains(TextDecorations.Strikethrough[0]) == true;
+                bool isMonospaced = IsMonospacedFont(run.FontFamily);
 
                 pdfParagraph.Runs.Add(new PdfTextRun
                 {
@@ -1027,7 +1083,8 @@ public partial class MainWindow : Window
                     IsBold = isBold,
                     IsItalic = isItalic,
                     IsUnderline = isUnderline,
-                    IsStrikethrough = isStrikethrough
+                    IsStrikethrough = isStrikethrough,
+                    IsMonospaced = isMonospaced
                 });
             }
             else if (inline is LineBreak)
@@ -1114,10 +1171,13 @@ public partial class MainWindow : Window
         PdfPage page = document.AddPage();
         XGraphics gfx = XGraphics.FromPdfPage(page);
 
-        string fontFamily = "Segoe UI";
         double fontSize = 12;
-        var fontCache = new Dictionary<XFontStyle, XFont>();
-        XFont regularFont = GetOrCreateFont(fontCache, fontFamily, fontSize, XFontStyle.Regular);
+        var fontCache = new Dictionary<(string Family, XFontStyle Style), XFont>();
+        XFont regularFont = GetOrCreateFont(
+            fontCache,
+            _styleConfiguration.BodyFontFamily,
+            fontSize,
+            XFontStyle.Regular);
 
         // Layout: 1-inch margins (72 points per inch)
         double marginLeft = 72;
@@ -1130,7 +1190,7 @@ public partial class MainWindow : Window
         {
             // For simplicity, choose a font based on the first run that has formatting
             XFont fontToUse = paragraph.Runs.Count > 0
-                ? GetFontForRun(paragraph.Runs[0], fontCache, fontFamily, fontSize)
+                ? GetFontForRun(paragraph.Runs[0], fontCache, _styleConfiguration, fontSize)
                 : regularFont;
 
             double lineHeight = fontToUse.GetHeight(gfx) * 1.4;
@@ -1140,7 +1200,7 @@ public partial class MainWindow : Window
                 paragraph.Runs,
                 gfx,
                 usableWidth,
-                run => GetFontForRun(run, fontCache, fontFamily, fontSize));
+                run => GetFontForRun(run, fontCache, _styleConfiguration, fontSize));
 
             foreach (var line in wrappedLines)
             {
@@ -1289,8 +1349,8 @@ public partial class MainWindow : Window
 
     private static XFont GetFontForRun(
         PdfTextRun run,
-        Dictionary<XFontStyle, XFont> fontCache,
-        string fontFamily,
+        Dictionary<(string Family, XFontStyle Style), XFont> fontCache,
+        StyleConfiguration styleConfiguration,
         double fontSize)
     {
         XFontStyle style = XFontStyle.Regular;
@@ -1304,19 +1364,25 @@ public partial class MainWindow : Window
         if (run.IsStrikethrough)
             style |= XFontStyle.Strikeout;
 
-        return GetOrCreateFont(fontCache, fontFamily, fontSize, style);
+        string selectedFamily = run.IsMonospaced
+            ? styleConfiguration.MonoFontFamily
+            : styleConfiguration.BodyFontFamily;
+
+        return GetOrCreateFont(fontCache, selectedFamily, fontSize, style);
     }
 
     private static XFont GetOrCreateFont(
-        Dictionary<XFontStyle, XFont> fontCache,
+        Dictionary<(string Family, XFontStyle Style), XFont> fontCache,
         string fontFamily,
         double fontSize,
         XFontStyle style)
     {
-        if (!fontCache.TryGetValue(style, out var font))
+        var key = (fontFamily, style);
+
+        if (!fontCache.TryGetValue(key, out var font))
         {
             font = new XFont(fontFamily, fontSize, style);
-            fontCache[style] = font;
+            fontCache[key] = font;
         }
 
         return font;
@@ -1400,7 +1466,7 @@ public partial class MainWindow : Window
         _isLoadingDocument = true;
         try
         {
-            EditorBox.Document = new FlowDocument();
+            EditorBox.Document = CreateStyledDocument();
         }
         finally
         {
@@ -1987,6 +2053,20 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ToggleMonospaced()
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        TextSelection selection = EditorBox.Selection;
+        object currentFamily = selection.GetPropertyValue(Inline.FontFamilyProperty);
+        bool isMonospaced = currentFamily is FontFamily family && IsMonospacedFont(family);
+
+        selection.ApplyPropertyValue(
+            Inline.FontFamilyProperty,
+            isMonospaced ? GetBodyFontFamily() : GetMonoFontFamily());
+    }
+
     private void ToggleItalic()
     {
         if (EditorBox == null || !CanFormat())
@@ -2057,6 +2137,15 @@ public partial class MainWindow : Window
         MarkDirty();
     }
 
+    private void MonospacedButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        ToggleMonospaced();
+        MarkDirty();
+    }
+
     private void BulletedListButton_Click(object sender, RoutedEventArgs e)
     {
         if (!CanFormat())
@@ -2116,6 +2205,8 @@ public partial class MainWindow : Window
             UnderlineButton.IsEnabled = canFormat;
         if (StrikethroughButton != null)
             StrikethroughButton.IsEnabled = canFormat;
+        if (MonospacedButton != null)
+            MonospacedButton.IsEnabled = canFormat;
         if (BulletedListButton != null)
             BulletedListButton.IsEnabled = canFormat;
         if (NumberedListButton != null)

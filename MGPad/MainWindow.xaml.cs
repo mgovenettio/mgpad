@@ -1478,6 +1478,7 @@ public partial class MainWindow : Window
         XGraphics gfx = XGraphics.FromPdfPage(page);
 
         double fontSize = 12;
+        const double lineSpacingFactor = 1.4;
         var fontCache = new Dictionary<(string Family, XFontStyle Style), XFont>();
         XFont regularFont = GetOrCreateFont(
             fontCache,
@@ -1494,12 +1495,6 @@ public partial class MainWindow : Window
         double y = marginTop;
         foreach (var paragraph in paragraphs)
         {
-            // For simplicity, choose a font based on the first run that has formatting
-            XFont fontToUse = paragraph.Runs.Count > 0
-                ? GetFontForRun(paragraph.Runs[0], fontCache, _styleConfiguration, fontSize)
-                : regularFont;
-
-            double lineHeight = fontToUse.GetHeight(gfx) * 1.4;
             double usableWidth = page.Width - marginLeft - marginRight;
 
             var wrappedLines = WrapParagraphRuns(
@@ -1508,8 +1503,12 @@ public partial class MainWindow : Window
                 usableWidth,
                 run => GetFontForRun(run, fontCache, _styleConfiguration, fontSize));
 
+            double lastLineHeight = 0;
+
             foreach (var line in wrappedLines)
             {
+                double lineHeight = GetLineHeight(line, gfx, lineSpacingFactor, regularFont);
+
                 if (y + lineHeight > page.Height - marginBottom)
                 {
                     // New page
@@ -1521,6 +1520,7 @@ public partial class MainWindow : Window
                 if (line.Count == 0)
                 {
                     y += lineHeight;
+                    lastLineHeight = lineHeight;
                     continue;
                 }
 
@@ -1535,13 +1535,38 @@ public partial class MainWindow : Window
                 }
 
                 y += lineHeight;
+                lastLineHeight = lineHeight;
             }
 
             // Extra space between paragraphs
-            y += lineHeight * 0.5;
+            double paragraphSpacing = (lastLineHeight > 0
+                ? lastLineHeight
+                : GetLineHeight(Array.Empty<PdfLineSpan>(), gfx, lineSpacingFactor, regularFont)) * 0.5;
+            y += paragraphSpacing;
         }
 
         document.Save(pdfPath);
+    }
+
+    private double GetLineHeight(
+        IReadOnlyCollection<PdfLineSpan> line,
+        XGraphics gfx,
+        double lineSpacingFactor,
+        XFont fallbackFont)
+    {
+        double maxHeight = 0;
+
+        foreach (var span in line)
+        {
+            double spanHeight = span.Font.GetHeight(gfx);
+            maxHeight = Math.Max(maxHeight, spanHeight);
+        }
+
+        double baseHeight = maxHeight > 0
+            ? maxHeight
+            : fallbackFont.GetHeight(gfx);
+
+        return baseHeight * lineSpacingFactor;
     }
 
     private List<List<PdfLineSpan>> WrapParagraphRuns(

@@ -391,6 +391,8 @@ public partial class MainWindow : Window
 
         if (NightModeButton != null)
             NightModeButton.Content = _isNightMode ? "Day" : "Night";
+
+        UpdateMarkdownPreview();
     }
 
     private void ApplyZoom()

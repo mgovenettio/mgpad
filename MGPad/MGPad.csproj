@@ -10,5 +10,6 @@
 
   <ItemGroup>
     <PackageReference Include="PdfSharp" Version="1.50.5147" />
+    <PackageReference Include="Markdig" Version="0.37.0" />
   </ItemGroup>
 </Project>

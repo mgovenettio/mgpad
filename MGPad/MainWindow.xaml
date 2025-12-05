@@ -197,12 +197,9 @@
                 <Border Grid.Column="1"
                         x:Name="MarkdownPreviewContainer"
                         Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <TextBlock x:Name="MarkdownPreviewTextBlock"
-                                   Text="Markdown preview"
-                                   TextWrapping="Wrap"
-                                   Margin="8" />
-                    </ScrollViewer>
+                    <WebBrowser x:Name="MarkdownPreviewBrowser"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch" />
                 </Border>
             </Grid>
         </Border>

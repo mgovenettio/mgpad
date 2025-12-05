@@ -448,7 +448,7 @@ public partial class MainWindow : Window
         string background = _isNightMode ? "#2d2d30" : "#ffffff";
         string foreground = _isNightMode ? "#f5f5f5" : "#000000";
 
-        string document = $@"<!DOCTYPE html><html><head><meta charset=\"utf-8\" /><style>body {{ font-family: 'Segoe UI', 'Yu Gothic UI', sans-serif; padding: 12px; color: {foreground}; background: {background}; }} code, pre {{ font-family: 'Cascadia Code', Consolas, 'Courier New', monospace; }} pre {{ background: rgba(0,0,0,0.04); padding: 8px; overflow-x: auto; }} a {{ color: #0066cc; }}</style></head><body>{html}</body></html>";
+        string document = $"<!DOCTYPE html><html><head><meta charset=\"utf-8\" /><style>body {{ font-family: 'Segoe UI', 'Yu Gothic UI', sans-serif; padding: 12px; color: {foreground}; background: {background}; }} code, pre {{ font-family: 'Cascadia Code', Consolas, 'Courier New', monospace; }} pre {{ background: rgba(0,0,0,0.04); padding: 8px; overflow-x: auto; }} a {{ color: #0066cc; }}</style></head><body>{html}</body></html>";
 
         MarkdownPreviewBrowser.NavigateToString(document);
     }

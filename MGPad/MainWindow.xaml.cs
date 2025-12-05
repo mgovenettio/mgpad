@@ -153,6 +153,7 @@ public partial class MainWindow : Window
             "recent-documents.txt");
         _markdownPipeline = new MarkdownPipelineBuilder()
             .UseAdvancedExtensions()
+            .DisableHtml()
             .Build();
         _markdownPreviewTimer = new DispatcherTimer
         {

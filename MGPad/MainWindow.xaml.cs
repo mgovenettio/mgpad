@@ -16,6 +16,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using System.Xml.Linq;
 using Microsoft.Win32;
+using Markdig;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 
@@ -85,6 +86,7 @@ public partial class MainWindow : Window
     private static readonly Regex NumberRegex = new(
         "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?",
         RegexOptions.Compiled);
+    private readonly MarkdownPipeline _markdownPipeline;
 
     private sealed class StyleConfiguration
     {
@@ -149,6 +151,9 @@ public partial class MainWindow : Window
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "MGPad",
             "recent-documents.txt");
+        _markdownPipeline = new MarkdownPipelineBuilder()
+            .UseAdvancedExtensions()
+            .Build();
         _markdownPreviewTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(300)
@@ -375,9 +380,6 @@ public partial class MainWindow : Window
             MarkdownPreviewContainer.BorderBrush = borderBrush;
         }
 
-        if (MarkdownPreviewTextBlock != null)
-            MarkdownPreviewTextBlock.Foreground = foreground;
-
         if (MainStatusBar != null)
         {
             MainStatusBar.Background = panelBackground;
@@ -430,75 +432,22 @@ public partial class MainWindow : Window
 
     private void UpdateMarkdownPreview()
     {
-        if (!_isMarkdownMode || MarkdownPreviewTextBlock == null)
+        if (!_isMarkdownMode || MarkdownPreviewBrowser == null)
             return;
 
         string markdown = GetEditorPlainText();
-        if (string.IsNullOrWhiteSpace(markdown))
-        {
-            MarkdownPreviewTextBlock.Text = string.Empty;
-            return;
-        }
+        string normalized = markdown.Replace("\r\n", "\n").Replace("\r", "\n");
 
-        var lines = markdown.Replace("\r\n", "\n").Split('\n');
-        var sb = new StringBuilder();
+        string html = string.IsNullOrWhiteSpace(normalized)
+            ? string.Empty
+            : Markdown.ToHtml(normalized, _markdownPipeline);
 
-        bool inCodeBlock = false;
+        string background = _isNightMode ? "#2d2d30" : "#ffffff";
+        string foreground = _isNightMode ? "#f5f5f5" : "#000000";
 
-        foreach (var rawLine in lines)
-        {
-            string line = rawLine;
+        string document = $@"<!DOCTYPE html><html><head><meta charset=\"utf-8\" /><style>body {{ font-family: 'Segoe UI', 'Yu Gothic UI', sans-serif; padding: 12px; color: {foreground}; background: {background}; }} code, pre {{ font-family: 'Cascadia Code', Consolas, 'Courier New', monospace; }} pre {{ background: rgba(0,0,0,0.04); padding: 8px; overflow-x: auto; }} a {{ color: #0066cc; }}</style></head><body>{html}</body></html>";
 
-            // Detect fenced code block markers
-            if (line.TrimStart().StartsWith("```"))
-            {
-                inCodeBlock = !inCodeBlock;
-                sb.AppendLine(line);
-                continue;
-            }
-
-            if (inCodeBlock)
-            {
-                sb.AppendLine("    " + line);
-                continue;
-            }
-
-            // Simple headings
-            if (line.StartsWith("# "))
-            {
-                string text = line.Substring(2).Trim();
-                sb.AppendLine(text.ToUpperInvariant());
-                sb.AppendLine(new string('=', Math.Max(text.Length, 3)));
-                sb.AppendLine();
-                continue;
-            }
-            if (line.StartsWith("## "))
-            {
-                string text = line.Substring(3).Trim();
-                sb.AppendLine(text);
-                sb.AppendLine(new string('-', Math.Max(text.Length, 3)));
-                sb.AppendLine();
-                continue;
-            }
-            if (line.StartsWith("### "))
-            {
-                string text = line.Substring(4).Trim();
-                sb.AppendLine("### " + text);
-                continue;
-            }
-
-            // Bullet lists (keep as-is)
-            if (line.TrimStart().StartsWith("- ") || line.TrimStart().StartsWith("* "))
-            {
-                sb.AppendLine(line);
-                continue;
-            }
-
-            // Simple inline emphasis: leave **bold** and *italic* as-is for now
-            sb.AppendLine(line);
-        }
-
-        MarkdownPreviewTextBlock.Text = sb.ToString();
+        MarkdownPreviewBrowser.NavigateToString(document);
     }
 
     private FlowDocument CreateStyledDocument()

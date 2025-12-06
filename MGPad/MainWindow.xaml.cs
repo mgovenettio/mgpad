@@ -2506,7 +2506,16 @@ public partial class MainWindow : Window
 
     private void EditorBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (EditorBox == null || !CanFormat())
+        if (EditorBox == null)
+            return;
+
+        if (e.Key == Key.Enter && TryHandleEnterWithListPrefix())
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (!CanFormat())
             return;
 
         if (e.Key == Key.Tab && IsSelectionInList())
@@ -2523,6 +2532,109 @@ public partial class MainWindow : Window
             e.Handled = true;
             MarkDirty();
         }
+    }
+
+    private bool GetCurrentLineTextAndOffsets(
+        out string lineText,
+        out TextPointer lineStart,
+        out TextPointer lineEnd)
+    {
+        lineText = string.Empty;
+        lineStart = lineEnd = EditorBox?.Document.ContentStart ?? new FlowDocument().ContentStart;
+
+        if (EditorBox == null)
+            return false;
+
+        lineStart = EditorBox.CaretPosition.GetLineStartPosition(0)
+            ?? EditorBox.Document.ContentStart;
+
+        TextPointer? nextLineStart = lineStart.GetLineStartPosition(1);
+        lineEnd = nextLineStart ?? EditorBox.Document.ContentEnd;
+        lineText = new TextRange(lineStart, lineEnd).Text;
+
+        return true;
+    }
+
+    private void ReplaceLineText(TextPointer lineStart, TextPointer lineEnd, string text)
+    {
+        new TextRange(lineStart, lineEnd).Text = text;
+    }
+
+    private void InsertNewLineWithPrefix(string prefix)
+    {
+        if (EditorBox == null)
+            return;
+
+        TextPointer insertionPoint = EditorBox.CaretPosition;
+        string insertionText = Environment.NewLine + prefix;
+
+        new TextRange(insertionPoint, insertionPoint).Text = insertionText;
+
+        TextPointer? newCaretPosition = insertionPoint.GetPositionAtOffset(
+            insertionText.Length,
+            LogicalDirection.Forward);
+
+        if (newCaretPosition != null)
+            EditorBox.CaretPosition = newCaretPosition;
+    }
+
+    private bool TryHandleEnterWithListPrefix()
+    {
+        if (EditorBox == null)
+            return false;
+
+        if (!GetCurrentLineTextAndOffsets(out string lineText, out TextPointer lineStart, out TextPointer lineEnd))
+            return false;
+
+        string normalizedLine = lineText.TrimEnd('\r', '\n');
+
+        var match = Regex.Match(
+            normalizedLine,
+            "^(?<indent>\\s*)(?:(?<number>\\d+)|(?<letter>[A-Za-z])|(?<bullet>[\\*-]))(?<punct>[.)])?(?<spacing>\\s+)(?<content>.*)$");
+
+        if (!match.Success)
+            return false;
+
+        string content = match.Groups["content"].Value;
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            ReplaceLineText(lineStart, lineEnd, string.Empty);
+            MarkDirty();
+            return true;
+        }
+
+        string indent = match.Groups["indent"].Value;
+        string punctuation = match.Groups["punct"].Value;
+        string spacing = match.Groups["spacing"].Value;
+        string nextMarker = string.Empty;
+
+        if (match.Groups["number"].Success)
+        {
+            int.TryParse(match.Groups["number"].Value, out int numberValue);
+            nextMarker = (numberValue + 1).ToString();
+        }
+        else if (match.Groups["letter"].Success)
+        {
+            char letterValue = match.Groups["letter"].Value[0];
+
+            // Letters increment alphabetically until they reach Z/z, where they clamp to the
+            // final character instead of wrapping back to A/a to avoid surprising numbering.
+            if ((letterValue >= 'a' && letterValue < 'z') || (letterValue >= 'A' && letterValue < 'Z'))
+                letterValue++;
+
+            nextMarker = letterValue.ToString();
+        }
+        else if (match.Groups["bullet"].Success)
+        {
+            nextMarker = match.Groups["bullet"].Value;
+        }
+
+        string prefix = indent + nextMarker + punctuation + spacing;
+
+        InsertNewLineWithPrefix(prefix);
+        MarkDirty();
+        return true;
     }
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)

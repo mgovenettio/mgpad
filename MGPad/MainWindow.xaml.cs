@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -87,6 +89,10 @@ public partial class MainWindow : Window
         "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?",
         RegexOptions.Compiled);
     private readonly MarkdownPipeline _markdownPipeline;
+    private readonly AutosaveService _autosaveService;
+    private Guid _untitledDocumentId = Guid.NewGuid();
+
+    private static readonly TimeSpan AutosaveInterval = TimeSpan.FromSeconds(60);
 
     private sealed class StyleConfiguration
     {
@@ -155,6 +161,11 @@ public partial class MainWindow : Window
             .UseAdvancedExtensions()
             .DisableHtml()
             .Build();
+        _autosaveService = new AutosaveService(
+            AutosaveInterval,
+            () => _isDirty,
+            GetAutosaveContext,
+            SaveAutosaveDocument);
         _markdownPreviewTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(300)
@@ -264,6 +275,7 @@ public partial class MainWindow : Window
         ApplyZoom();
         LoadRecentDocuments();
         UpdateRecentDocumentsMenu();
+        _autosaveService.Start();
     }
 
     private void HelpMenuItem_Click(object sender, RoutedEventArgs e)
@@ -974,6 +986,10 @@ public partial class MainWindow : Window
     {
         _currentFilePath = path;
         _currentDocumentType = type;
+        if (string.IsNullOrEmpty(path))
+        {
+            _untitledDocumentId = Guid.NewGuid();
+        }
         if (!string.IsNullOrWhiteSpace(path))
         {
             AddRecentDocument(path);
@@ -1017,6 +1033,71 @@ public partial class MainWindow : Window
         return string.IsNullOrEmpty(_currentFilePath)
             ? "Untitled"
             : Path.GetFileName(_currentFilePath);
+    }
+
+    private AutosaveContext GetAutosaveContext()
+    {
+        var documentType = GetCurrentDocumentTypeForSaving();
+        var extension = GetExtensionForDocumentType(documentType);
+        var baseName = GetAutosaveBaseName();
+
+        return new AutosaveContext(
+            baseName,
+            documentType,
+            extension,
+            _currentFilePath,
+            string.IsNullOrEmpty(_currentFilePath));
+    }
+
+    private DocumentType GetCurrentDocumentTypeForSaving()
+    {
+        if (!string.IsNullOrEmpty(_currentFilePath))
+        {
+            return DetermineDocumentType(_currentFilePath);
+        }
+
+        return _currentDocumentType;
+    }
+
+    private string GetAutosaveBaseName()
+    {
+        if (!string.IsNullOrEmpty(_currentFilePath))
+        {
+            return CreateDeterministicAutosaveName(_currentFilePath);
+        }
+
+        if (_untitledDocumentId == Guid.Empty)
+        {
+            _untitledDocumentId = Guid.NewGuid();
+        }
+
+        return _untitledDocumentId.ToString();
+    }
+
+    private static string CreateDeterministicAutosaveName(string path)
+    {
+        var sanitized = SanitizeFileName(Path.GetFileName(path));
+        if (string.IsNullOrWhiteSpace(sanitized))
+        {
+            sanitized = "document";
+        }
+
+        using var sha = SHA256.Create();
+        var hash = Convert.ToHexString(sha.ComputeHash(Encoding.UTF8.GetBytes(path))).Substring(0, 8);
+        return $"{sanitized}-{hash}";
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var builder = new StringBuilder();
+
+        foreach (char c in name)
+        {
+            builder.Append(invalidChars.Contains(c) ? '_' : c);
+        }
+
+        return builder.ToString();
     }
 
     private void UpdateStatusBar()
@@ -1981,6 +2062,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        _autosaveService.DeleteCurrentAutosaveFiles();
         _isLoadingDocument = true;
         try
         {
@@ -2013,6 +2095,8 @@ public partial class MainWindow : Window
         {
             return false;
         }
+
+        _autosaveService.DeleteCurrentAutosaveFiles();
 
         if (!File.Exists(path))
         {
@@ -2133,11 +2217,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private bool SaveDocumentToFile(string path)
+    private bool TryWriteDocument(string path, DocumentType documentType, bool showErrors, bool applyMarkdownMode)
     {
         try
         {
-            var documentType = DetermineDocumentType(path);
             if (documentType == DocumentType.RichText)
             {
                 if (EditorBox != null)
@@ -2146,36 +2229,77 @@ public partial class MainWindow : Window
                     using var stream = new FileStream(path, FileMode.Create, FileAccess.Write);
                     range.Save(stream, DataFormats.Rtf);
                 }
-                SetMarkdownMode(false);
+
+                if (applyMarkdownMode)
+                {
+                    SetMarkdownMode(false);
+                }
             }
             else if (documentType == DocumentType.Markdown)
             {
                 var text = GetEditorPlainText();
                 File.WriteAllText(path, text);
-                SetMarkdownMode(true);
+
+                if (applyMarkdownMode)
+                {
+                    SetMarkdownMode(true);
+                }
             }
             else if (documentType == DocumentType.OpenDocument)
             {
                 ExportDocumentToOdt(path);
-                SetMarkdownMode(false);
+
+                if (applyMarkdownMode)
+                {
+                    SetMarkdownMode(false);
+                }
             }
             else
             {
                 var text = GetEditorPlainText();
                 File.WriteAllText(path, text);
-                SetMarkdownMode(false);
+
+                if (applyMarkdownMode)
+                {
+                    SetMarkdownMode(false);
+                }
             }
 
-            SetCurrentFile(path, documentType);
-            UpdateFormattingControls();
-            MarkClean();
             return true;
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Failed to save document: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (showErrors)
+            {
+                MessageBox.Show($"Failed to save document: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            else
+            {
+                Debug.WriteLine($"Silent save failed for '{path}': {ex}");
+            }
+
             return false;
         }
+    }
+
+    private bool SaveDocumentToFile(string path)
+    {
+        var documentType = DetermineDocumentType(path);
+        if (!TryWriteDocument(path, documentType, showErrors: true, applyMarkdownMode: true))
+        {
+            return false;
+        }
+
+        SetCurrentFile(path, documentType);
+        UpdateFormattingControls();
+        MarkClean();
+        _autosaveService.OnManualSave();
+        return true;
+    }
+
+    private bool SaveAutosaveDocument(string path, DocumentType documentType)
+    {
+        return TryWriteDocument(path, documentType, showErrors: false, applyMarkdownMode: false);
     }
 
     private static DocumentType DetermineDocumentType(string path)
@@ -2303,6 +2427,8 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         InputLanguageManager.Current.InputLanguageChanged -= InputLanguageManager_InputLanguageChanged;
+        _autosaveService.Stop();
+        _autosaveService.DeleteCurrentAutosaveFiles();
         base.OnClosed(e);
     }
 

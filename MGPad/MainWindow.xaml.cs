@@ -83,6 +83,7 @@ public partial class MainWindow : Window
     private CultureInfo? _englishInputLanguage;
     private CultureInfo? _japaneseInputLanguage;
     private bool _isUpdatingFontControls;
+    private bool _isRenumberingLists;
     private readonly double[] _defaultFontSizes = new double[]
         { 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72 };
     private static readonly Regex NumberRegex = new(
@@ -2498,6 +2499,27 @@ public partial class MainWindow : Window
         if (_isLoadingDocument)
         {
             return;
+        }
+
+        if (_isRenumberingLists)
+        {
+            return;
+        }
+
+        if (EditorBox != null)
+        {
+            // Renumber inline list prefixes after edits. The helper tracks the caret's line/column so
+            // replacements keep the caret near the user's previous location instead of jumping to the
+            // document start.
+            try
+            {
+                _isRenumberingLists = true;
+                ListFormatter.RenumberLists(EditorBox);
+            }
+            finally
+            {
+                _isRenumberingLists = false;
+            }
         }
 
         MarkDirty();

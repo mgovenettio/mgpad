@@ -91,6 +91,8 @@ public partial class MainWindow : Window
     private readonly MarkdownPipeline _markdownPipeline;
     private readonly AutosaveService _autosaveService;
     private Guid _untitledDocumentId = Guid.NewGuid();
+    private bool _isRecoveredDocument;
+    private readonly List<string> _pendingRecoveryAutosavePaths = new();
 
     private static readonly TimeSpan AutosaveInterval = TimeSpan.FromSeconds(60);
 
@@ -150,7 +152,7 @@ public partial class MainWindow : Window
         "• Toggle JP/EN switches input language when both are available.\n" +
         "• Use the zoom controls in the status bar to adjust text size.";
 
-    public MainWindow()
+    public MainWindow(RecoveryItem? recoveryItem = null)
     {
         InitializeComponent();
         _recentDocumentsFilePath = Path.Combine(
@@ -276,6 +278,11 @@ public partial class MainWindow : Window
         LoadRecentDocuments();
         UpdateRecentDocumentsMenu();
         _autosaveService.Start();
+
+        if (recoveryItem != null)
+        {
+            LoadRecoveredDocument(recoveryItem);
+        }
     }
 
     private void HelpMenuItem_Click(object sender, RoutedEventArgs e)
@@ -982,8 +989,13 @@ public partial class MainWindow : Window
         MarkClean();
     }
 
-    private void SetCurrentFile(string? path, DocumentType type)
+    private void SetCurrentFile(string? path, DocumentType type, bool clearRecoveryState = true)
     {
+        if (clearRecoveryState)
+        {
+            ClearRecoveredState(deletePendingFiles: true);
+        }
+
         _currentFilePath = path;
         _currentDocumentType = type;
         if (string.IsNullOrEmpty(path))
@@ -1008,6 +1020,26 @@ public partial class MainWindow : Window
         UpdateWindowTitle();
     }
 
+    private void ClearRecoveredState(bool deletePendingFiles)
+    {
+        if (deletePendingFiles)
+        {
+            DeletePendingRecoveryAutosaveFiles();
+        }
+
+        _isRecoveredDocument = false;
+    }
+
+    private void DeletePendingRecoveryAutosaveFiles()
+    {
+        foreach (var path in _pendingRecoveryAutosavePaths)
+        {
+            AutosaveService.TryDeleteFile(path);
+        }
+
+        _pendingRecoveryAutosavePaths.Clear();
+    }
+
     private void MarkClean()
     {
         if (!_isDirty)
@@ -1030,9 +1062,16 @@ public partial class MainWindow : Window
 
     private string GetDisplayFileName()
     {
-        return string.IsNullOrEmpty(_currentFilePath)
+        var baseName = string.IsNullOrEmpty(_currentFilePath)
             ? "Untitled"
             : Path.GetFileName(_currentFilePath);
+
+        if (_isRecoveredDocument)
+        {
+            baseName += " [Recovered]";
+        }
+
+        return baseName;
     }
 
     private AutosaveContext GetAutosaveContext()
@@ -2217,6 +2256,82 @@ public partial class MainWindow : Window
         }
     }
 
+    public void LoadRecoveredDocument(RecoveryItem recoveryItem)
+    {
+        if (!File.Exists(recoveryItem.AutosavePath))
+        {
+            MessageBox.Show(
+                $"The autosave file could not be found:\n{recoveryItem.AutosavePath}",
+                "Autosave Missing",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            _isLoadingDocument = true;
+            _isDirty = false;
+            var documentType = recoveryItem.DocumentType;
+
+            if (documentType == DocumentType.Markdown)
+            {
+                var text = File.ReadAllText(recoveryItem.AutosavePath);
+                SetEditorPlainText(text);
+                SetMarkdownMode(true);
+            }
+            else if (documentType == DocumentType.OpenDocument)
+            {
+                LoadOdtIntoEditor(recoveryItem.AutosavePath);
+                SetMarkdownMode(false);
+            }
+            else if (documentType == DocumentType.RichText)
+            {
+                LoadRtfIntoEditor(recoveryItem.AutosavePath);
+                SetMarkdownMode(false);
+            }
+            else
+            {
+                var text = File.ReadAllText(recoveryItem.AutosavePath);
+                SetEditorPlainText(text);
+                DisableMarkdownModeLayout();
+            }
+
+            _currentFilePath = recoveryItem.IsUntitled ? null : recoveryItem.OriginalPath;
+            _currentDocumentType = documentType;
+            _previousDocumentType = documentType;
+            _isRecoveredDocument = true;
+            _pendingRecoveryAutosavePaths.Clear();
+            _pendingRecoveryAutosavePaths.Add(recoveryItem.AutosavePath);
+            _pendingRecoveryAutosavePaths.Add(recoveryItem.MetadataPath);
+
+            if (recoveryItem.IsUntitled)
+            {
+                _untitledDocumentId = Guid.NewGuid();
+            }
+            else if (!string.IsNullOrWhiteSpace(recoveryItem.OriginalPath))
+            {
+                AddRecentDocument(recoveryItem.OriginalPath);
+            }
+
+            UpdateWindowTitle();
+            UpdateFormattingControls();
+            MarkDirty();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Failed to recover the document: {ex.Message}",
+                "Recovery Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            _isLoadingDocument = false;
+        }
+    }
+
     private bool TryWriteDocument(string path, DocumentType documentType, bool showErrors, bool applyMarkdownMode)
     {
         try
@@ -2429,6 +2544,7 @@ public partial class MainWindow : Window
         InputLanguageManager.Current.InputLanguageChanged -= InputLanguageManager_InputLanguageChanged;
         _autosaveService.Stop();
         _autosaveService.DeleteCurrentAutosaveFiles();
+        DeletePendingRecoveryAutosaveFiles();
         base.OnClosed(e);
     }
 

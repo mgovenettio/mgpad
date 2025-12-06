@@ -30,10 +30,7 @@ internal sealed class AutosaveService
         _isDirty = isDirty;
         _contextProvider = contextProvider;
         _writeCallback = writeCallback;
-        _autosaveDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "MGPad",
-            "Autosave");
+        _autosaveDirectory = GetAutosaveDirectory();
 
         _timer = new DispatcherTimer { Interval = interval };
         _timer.Tick += OnTimerTick;
@@ -123,7 +120,15 @@ internal sealed class AutosaveService
         }
     }
 
-    private static void TryDeleteFile(string? path)
+    internal static string GetAutosaveDirectory()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MGPad",
+            "Autosave");
+    }
+
+    internal static void TryDeleteFile(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {

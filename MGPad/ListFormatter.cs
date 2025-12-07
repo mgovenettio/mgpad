@@ -26,24 +26,48 @@ internal static class ListFormatter
 
         SelectionSnapshot selectionSnapshot = CaptureSelection(editor);
 
+        Dictionary<int, (ListLineType type, bool isUppercase, int count)> numberingState = new();
+
         for (int i = 0; i < lines.Count; i++)
         {
-            if (!ListParser.TryMatchOrderedList(lines[i].NormalizedText, out OrderedListMatch firstMatch))
+            if (!ListParser.TryParseListLine(lines[i].NormalizedText, out ParsedListLine parsedLine) ||
+                (parsedLine.Type != ListLineType.Numbered && parsedLine.Type != ListLineType.Lettered))
+            {
                 continue;
+            }
+
+            // Drop numbering state for deeper indentation levels when moving back up the document tree.
+            foreach (int level in numberingState.Keys.Where(level => level > parsedLine.IndentLevel).ToList())
+            {
+                numberingState.Remove(level);
+            }
 
             int blockStart = i;
-            List<OrderedListMatch> blockMatches = new() { firstMatch };
+            List<ParsedListLine> blockLines = new() { parsedLine };
 
             i++;
             while (i < lines.Count &&
-                   ListParser.TryMatchOrderedList(lines[i].NormalizedText, out OrderedListMatch nextMatch) &&
-                   nextMatch.Type == firstMatch.Type)
+                   ListParser.TryParseListLine(lines[i].NormalizedText, out ParsedListLine nextLine) &&
+                   nextLine.Type == parsedLine.Type &&
+                   nextLine.IndentLevel == parsedLine.IndentLevel)
             {
-                blockMatches.Add(nextMatch);
+                blockLines.Add(nextLine);
                 i++;
             }
 
-            RenumberBlock(lines, blockStart, blockMatches, firstMatch.Type);
+            int startingIndex = numberingState.TryGetValue(parsedLine.IndentLevel, out var state) &&
+                                 state.type == parsedLine.Type &&
+                                 state.isUppercase == parsedLine.IsUppercaseLetter
+                ? state.count
+                : 0;
+
+            RenumberBlock(lines, blockStart, blockLines, parsedLine.Type, startingIndex);
+
+            numberingState[parsedLine.IndentLevel] = (
+                parsedLine.Type,
+                parsedLine.IsUppercaseLetter,
+                startingIndex + blockLines.Count);
+
             i--;
         }
 
@@ -72,29 +96,30 @@ internal static class ListFormatter
     private static void RenumberBlock(
         IReadOnlyList<LineInfo> lines,
         int blockStart,
-        IReadOnlyList<OrderedListMatch> matches,
-        ListLineType listType)
+        IReadOnlyList<ParsedListLine> parsedLines,
+        ListLineType listType,
+        int startingIndex)
     {
-        bool useUppercaseLetters = listType == ListLineType.Lettered && matches[0].IsUppercaseLetter;
+        bool useUppercaseLetters = listType == ListLineType.Lettered && parsedLines[0].IsUppercaseLetter;
         char letterBase = useUppercaseLetters ? 'A' : 'a';
 
-        for (int i = 0; i < matches.Count; i++)
+        for (int i = 0; i < parsedLines.Count; i++)
         {
-            OrderedListMatch match = matches[i];
+            ParsedListLine parsedLine = parsedLines[i];
             LineInfo line = lines[blockStart + i];
 
-            string indent = match.Indent;
-            string punctuation = match.Punctuation;
-            string spacing = match.Spacing;
+            string indent = parsedLine.IndentText;
+            string punctuation = parsedLine.Punctuation;
+            string spacing = parsedLine.Spacing;
 
             string newMarker = listType switch
             {
-                ListLineType.Numbered => (i + 1).ToString(),
-                _ => BuildLetterMarker(letterBase, i)
+                ListLineType.Numbered => (startingIndex + i + 1).ToString(),
+                _ => BuildLetterMarker(letterBase, startingIndex + i)
             };
 
             string newPrefix = ListParser.BuildPrefix(indent, newMarker, punctuation, spacing);
-            string existingPrefix = match.ExistingPrefix;
+            string existingPrefix = ListParser.BuildPrefix(indent, parsedLine.Marker, punctuation, spacing);
 
             if (newPrefix == existingPrefix)
                 continue;

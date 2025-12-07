@@ -2,7 +2,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.9.34520.211
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MGPad", "MGPad\MGPad.csproj", "{74538DB2-30BF-48E2-83F1-B9EF88FF0499}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MGPad", "MGPad\\MGPad.csproj", "{74538DB2-30BF-48E2-83F1-B9EF88FF0499}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MGPad.Tests", "MGPad.Tests\\MGPad.Tests.csproj", "{A7D2CAEA-8242-407E-8D9A-C037B84A79FC}"
 EndProject
 Global
 GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -14,6 +16,10 @@ GlobalSection(ProjectConfigurationPlatforms) = postSolution
 {74538DB2-30BF-48E2-83F1-B9EF88FF0499}.Debug|Any CPU.Build.0 = Debug|Any CPU
 {74538DB2-30BF-48E2-83F1-B9EF88FF0499}.Release|Any CPU.ActiveCfg = Release|Any CPU
 {74538DB2-30BF-48E2-83F1-B9EF88FF0499}.Release|Any CPU.Build.0 = Release|Any CPU
+{A7D2CAEA-8242-407E-8D9A-C037B84A79FC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+{A7D2CAEA-8242-407E-8D9A-C037B84A79FC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+{A7D2CAEA-8242-407E-8D9A-C037B84A79FC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+{A7D2CAEA-8242-407E-8D9A-C037B84A79FC}.Release|Any CPU.Build.0 = Release|Any CPU
 EndGlobalSection
 GlobalSection(SolutionProperties) = preSolution
 HideSolutionNode = FALSE

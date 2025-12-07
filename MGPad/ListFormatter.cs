@@ -40,7 +40,7 @@ internal static class ListFormatter
         if (lines.Count == 0)
             return;
 
-        (int lineIndex, int columnOffset) = CaptureCaretLocation(editor);
+        SelectionSnapshot selectionSnapshot = CaptureSelection(editor);
 
         for (int i = 0; i < lines.Count; i++)
         {
@@ -63,7 +63,7 @@ internal static class ListFormatter
             i--;
         }
 
-        RestoreCaret(editor, lineIndex, columnOffset);
+        RestoreSelection(editor, selectionSnapshot);
     }
 
     private static IEnumerable<LineInfo> GetLines(FlowDocument document)
@@ -146,10 +146,9 @@ internal static class ListFormatter
         return ((char)(letterBase + clamped)).ToString();
     }
 
-    private static (int lineIndex, int columnOffset) CaptureCaretLocation(RichTextBox editor)
+    private static (int lineIndex, int columnOffset) CapturePosition(RichTextBox editor, TextPointer position)
     {
-        TextPointer caret = editor.CaretPosition;
-        TextPointer lineStart = caret.GetLineStartPosition(0) ?? caret;
+        TextPointer lineStart = position.GetLineStartPosition(0) ?? position;
 
         int lineIndex = 0;
         TextPointer? walker = editor.Document.ContentStart.GetLineStartPosition(0);
@@ -163,11 +162,11 @@ internal static class ListFormatter
             walker = next;
         }
 
-        int columnOffset = lineStart.GetOffsetToPosition(caret);
+        int columnOffset = lineStart.GetOffsetToPosition(position);
         return (lineIndex, Math.Max(0, columnOffset));
     }
 
-    private static void RestoreCaret(RichTextBox editor, int lineIndex, int columnOffset)
+    private static TextPointer RestorePosition(RichTextBox editor, int lineIndex, int columnOffset)
     {
         TextPointer contentStart = editor.Document.ContentStart;
         TextPointer? lineStart = contentStart.GetLineStartPosition(lineIndex, out int linesMoved);
@@ -191,6 +190,39 @@ internal static class ListFormatter
             }
         }
 
-        editor.CaretPosition = targetPosition;
+        return targetPosition;
+    }
+
+    private sealed record SelectionSnapshot(
+        (int lineIndex, int columnOffset) Start,
+        (int lineIndex, int columnOffset) End,
+        (int lineIndex, int columnOffset) Caret,
+        bool IsEmpty);
+
+    private static SelectionSnapshot CaptureSelection(RichTextBox editor)
+    {
+        TextSelection selection = editor.Selection;
+
+        return new SelectionSnapshot(
+            CapturePosition(editor, selection.Start),
+            CapturePosition(editor, selection.End),
+            CapturePosition(editor, editor.CaretPosition),
+            selection.IsEmpty);
+    }
+
+    private static void RestoreSelection(RichTextBox editor, SelectionSnapshot snapshot)
+    {
+        TextPointer start = RestorePosition(editor, snapshot.Start.lineIndex, snapshot.Start.columnOffset);
+        TextPointer end = RestorePosition(editor, snapshot.End.lineIndex, snapshot.End.columnOffset);
+        TextPointer caret = RestorePosition(editor, snapshot.Caret.lineIndex, snapshot.Caret.columnOffset);
+
+        if (snapshot.IsEmpty)
+        {
+            editor.CaretPosition = caret;
+            return;
+        }
+
+        editor.Selection.Select(start, end);
+        editor.CaretPosition = caret;
     }
 }

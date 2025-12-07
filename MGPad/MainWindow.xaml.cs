@@ -1938,6 +1938,8 @@ public partial class MainWindow : Window
         // font).  Runs marked IsMonospaced are mapped to Code; everything else uses Text.  The font
         // faces are written into styles.xml so consumers that lack the primary font can still fall
         // back to the Japanese-friendly alternates listed in StyleConfiguration.
+        var bodyElements = BuildOdtBodyElements(paragraphs, automaticStyles, text, style, fo).ToList();
+
         var contentDoc = new XDocument(
             new XDeclaration("1.0", "UTF-8", "yes"),
             new XElement(office + "document-content",
@@ -1947,8 +1949,7 @@ public partial class MainWindow : Window
                 new XAttribute(XNamespace.Xmlns + "fo", fo),
                 new XElement(office + "automatic-styles", automaticStyles),
                 new XElement(office + "body",
-                    new XElement(office + "text",
-                        paragraphs.Select(p => CreateOdtParagraph(p, automaticStyles, text, style, fo))))));
+                    new XElement(office + "text", bodyElements))));
 
         var stylesDoc = new XDocument(
             new XDeclaration("1.0", "UTF-8", "yes"),
@@ -2011,8 +2012,237 @@ public partial class MainWindow : Window
         document.Save(writer);
     }
 
-    private XElement CreateOdtParagraph(
+    private IEnumerable<XElement> BuildOdtBodyElements(
+        IReadOnlyList<PdfParagraph> paragraphs,
+        List<XElement> automaticStyles,
+        XNamespace text,
+        XNamespace style,
+        XNamespace fo)
+    {
+        // We parse each paragraph to detect leading list markers (numeric, alphabetic, or bullet)
+        // and their indentation level.  When a marker is present we emit nested text:list elements
+        // so consumers see true list structure; otherwise we fall back to plain text:p elements
+        // with the original prefix intact.  This mapping keeps manual list formatting reversible:
+        // office suites that ignore text:list still receive the exact marker/spacing, while suites
+        // that honor it can recover proper numbering and nesting.
+        var result = new List<XElement>();
+        var listStack = new List<OdtListState>();
+        var listStyles = new Dictionary<string, XElement>();
+
+        foreach (PdfParagraph paragraph in paragraphs)
+        {
+            if (TryParseListParagraph(paragraph, out ParsedListLine parsedLine, out List<PdfTextRun> contentRuns))
+            {
+                AdjustListStackForLine(parsedLine, result, listStack, listStyles, automaticStyles, text, style);
+
+                OdtListState currentLevel = listStack[parsedLine.IndentLevel];
+                var listItem = new XElement(text + "list-item");
+                listItem.Add(CreateOdtParagraph(contentRuns, automaticStyles, text, style, fo));
+
+                currentLevel.ListElement.Add(listItem);
+                currentLevel.LastItem = listItem;
+            }
+            else
+            {
+                listStack.Clear();
+                result.Add(CreateOdtParagraph(paragraph.Runs, automaticStyles, text, style, fo));
+            }
+        }
+
+        return result;
+    }
+
+    private void AdjustListStackForLine(
+        ParsedListLine parsedLine,
+        List<XElement> rootElements,
+        List<OdtListState> stack,
+        Dictionary<string, XElement> styleCache,
+        List<XElement> automaticStyles,
+        XNamespace text,
+        XNamespace style)
+    {
+        int targetDepth = parsedLine.IndentLevel + 1;
+
+        while (stack.Count > targetDepth)
+            stack.RemoveAt(stack.Count - 1);
+
+        string styleName = GetOrCreateListStyleName(parsedLine, stack.Count, styleCache, automaticStyles, text, style);
+
+        if (stack.Count == 0 || !stack[^1].Matches(parsedLine, styleName))
+        {
+            stack.Add(CreateListLevel(parsedLine, styleName, stack.LastOrDefault(), rootElements, text));
+        }
+
+        while (stack.Count < targetDepth)
+        {
+            stack.Add(CreateListLevel(parsedLine, styleName, stack.LastOrDefault(), rootElements, text));
+        }
+
+        if (!stack[^1].Matches(parsedLine, styleName))
+        {
+            stack[^1] = CreateListLevel(parsedLine, styleName, stack.Count > 1 ? stack[^2] : null, rootElements, text);
+        }
+    }
+
+    private OdtListState CreateListLevel(
+        ParsedListLine parsedLine,
+        string styleName,
+        OdtListState? parent,
+        List<XElement> rootElements,
+        XNamespace text)
+    {
+        var listElement = new XElement(text + "list",
+            new XAttribute(text + "style-name", styleName));
+
+        if (parent?.LastItem != null)
+            parent.LastItem.Add(listElement);
+        else
+            rootElements.Add(listElement);
+
+        return new OdtListState
+        {
+            Type = parsedLine.Type,
+            IsUppercaseLetter = parsedLine.IsUppercaseLetter,
+            BulletSymbol = parsedLine.Marker,
+            ListElement = listElement,
+            StyleName = styleName
+        };
+    }
+
+    private string GetOrCreateListStyleName(
+        ParsedListLine parsedLine,
+        int currentDepth,
+        Dictionary<string, XElement> styleCache,
+        List<XElement> automaticStyles,
+        XNamespace text,
+        XNamespace style)
+    {
+        string key = $"{parsedLine.Type}:{parsedLine.IsUppercaseLetter}:{parsedLine.Marker}:{parsedLine.Punctuation}:{parsedLine.Spacing}";
+
+        if (!styleCache.TryGetValue(key, out XElement? styleElement))
+        {
+            string styleName = $"GeneratedListStyle{styleCache.Count + 1}";
+            styleElement = new XElement(text + "list-style",
+                new XAttribute(style + "name", styleName));
+            styleCache[key] = styleElement;
+            automaticStyles.Add(styleElement);
+        }
+
+        int level = currentDepth + 1;
+        bool hasLevel = styleElement.Elements()
+            .Any(e => int.TryParse((string?)e.Attribute(text + "level"), out int parsedLevel) && parsedLevel == level);
+
+        if (!hasLevel)
+        {
+            string suffix = parsedLine.Punctuation + parsedLine.Spacing;
+            XElement levelElement = parsedLine.Type switch
+            {
+                ListLineType.Numbered => new XElement(text + "list-level-style-number",
+                    new XAttribute(text + "level", level),
+                    new XAttribute(style + "num-format", "1"),
+                    new XAttribute(style + "num-suffix", suffix)),
+                ListLineType.Lettered => new XElement(text + "list-level-style-number",
+                    new XAttribute(text + "level", level),
+                    new XAttribute(style + "num-format", parsedLine.IsUppercaseLetter ? "A" : "a"),
+                    new XAttribute(style + "num-suffix", suffix)),
+                _ => new XElement(text + "list-level-style-bullet",
+                    new XAttribute(text + "level", level),
+                    new XAttribute(text + "bullet-char", parsedLine.Marker),
+                    new XAttribute(style + "num-suffix", suffix))
+            };
+
+            styleElement.Add(levelElement);
+        }
+
+        return (string)styleElement.Attribute(style + "name")!;
+    }
+
+    private bool TryParseListParagraph(
         PdfParagraph paragraph,
+        out ParsedListLine parsedLine,
+        out List<PdfTextRun> contentRuns)
+    {
+        string paragraphText = string.Concat(paragraph.Runs.Select(r => r.Text));
+
+        if (!TryParseListLine(paragraphText, out parsedLine))
+        {
+            contentRuns = paragraph.Runs.ToList();
+            return false;
+        }
+
+        int prefixLength = parsedLine.IndentText.Length
+            + parsedLine.Marker.Length
+            + parsedLine.Punctuation.Length
+            + parsedLine.Spacing.Length;
+
+        contentRuns = TrimPrefixFromRuns(paragraph.Runs, prefixLength);
+        return true;
+    }
+
+    private List<PdfTextRun> TrimPrefixFromRuns(IReadOnlyList<PdfTextRun> runs, int prefixLength)
+    {
+        var result = new List<PdfTextRun>();
+        int remaining = prefixLength;
+        bool started = remaining <= 0;
+
+        foreach (PdfTextRun run in runs)
+        {
+            string text = run.Text;
+
+            if (!started)
+            {
+                if (text.Length <= remaining)
+                {
+                    remaining -= text.Length;
+                    continue;
+                }
+
+                string trimmedText = text[remaining..];
+                result.Add(CloneRunWithText(run, trimmedText));
+                started = true;
+            }
+            else
+            {
+                result.Add(CloneRunWithText(run, text));
+            }
+        }
+
+        return result;
+    }
+
+    private static PdfTextRun CloneRunWithText(PdfTextRun source, string text)
+    {
+        return new PdfTextRun
+        {
+            Text = text,
+            IsBold = source.IsBold,
+            IsItalic = source.IsItalic,
+            IsUnderline = source.IsUnderline,
+            IsStrikethrough = source.IsStrikethrough,
+            IsMonospaced = source.IsMonospaced
+        };
+    }
+
+    private sealed class OdtListState
+    {
+        public ListLineType Type { get; init; }
+        public bool IsUppercaseLetter { get; init; }
+        public string BulletSymbol { get; init; } = string.Empty;
+        public XElement ListElement { get; init; } = null!;
+        public XElement? LastItem { get; set; }
+        public string StyleName { get; init; } = string.Empty;
+
+        public bool Matches(ParsedListLine parsedLine, string styleName)
+        {
+            return Type == parsedLine.Type
+                && IsUppercaseLetter == parsedLine.IsUppercaseLetter
+                && BulletSymbol == parsedLine.Marker
+                && string.Equals(StyleName, styleName, StringComparison.Ordinal);
+        }
+    }
+
+    private XElement CreateOdtParagraph(
+        IReadOnlyList<PdfTextRun> runs,
         List<XElement> automaticStyles,
         XNamespace text,
         XNamespace style,
@@ -2020,7 +2250,7 @@ public partial class MainWindow : Window
     {
         var paragraphElement = new XElement(text + "p");
 
-        foreach (var run in paragraph.Runs)
+        foreach (var run in runs)
         {
             AppendSpanElements(paragraphElement, run, automaticStyles, text, style, fo);
         }

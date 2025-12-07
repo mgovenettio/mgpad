@@ -77,6 +77,7 @@ public partial class MainWindow : Window
     private const double MinFontSize = 6;
     private const double MaxFontSize = 96;
     private const int MaxRecentDocuments = 10;
+    private const int IndentSpacesPerLevel = 4;
     private readonly List<string> _recentDocuments = new();
     private readonly string _recentDocumentsFilePath;
     private readonly DispatcherTimer _markdownPreviewTimer;
@@ -2532,17 +2533,42 @@ public partial class MainWindow : Window
         if (!CanFormat())
             return;
 
-        if (e.Key == Key.Tab && IsSelectionInList())
+        if (e.Key == Key.Tab &&
+            GetCurrentLineTextAndOffsets(out string lineText, out TextPointer lineStart, out TextPointer lineEnd) &&
+            IsListLine(lineText))
         {
-            if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
-            {
-                EditingCommands.DecreaseIndentation.Execute(null, EditorBox);
-            }
-            else
-            {
-                EditingCommands.IncreaseIndentation.Execute(null, EditorBox);
-            }
+            int currentIndentLevel = GetIndentLevel(lineText);
+            bool isShiftTab = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
 
+            // Shift+Tab on a top-level list item keeps the indent level at zero so the marker stays
+            // aligned instead of moving the line into negative indentation.
+            int targetIndentLevel = isShiftTab
+                ? Math.Max(0, currentIndentLevel - 1)
+                : currentIndentLevel + 1;
+
+            string normalizedLine = lineText.TrimEnd('\r', '\n');
+            Match match = ListPrefixRegex.Match(normalizedLine);
+
+            if (!match.Success)
+                return;
+
+            string originalIndentation = match.Groups["indent"].Value;
+            string updatedLine = SetIndentLevel(lineText, targetIndentLevel);
+
+            int caretOffset = lineStart.GetOffsetToPosition(EditorBox.CaretPosition);
+
+            ReplaceLineText(lineStart, lineEnd, updatedLine);
+
+            int newIndentLength = targetIndentLevel * IndentSpacesPerLevel;
+            int updatedCaretOffset = Math.Max(0, caretOffset + (newIndentLength - originalIndentation.Length));
+            int maxOffset = Math.Max(0, updatedLine.Length - 1);
+
+            TextPointer? updatedCaret = lineStart.GetPositionAtOffset(Math.Min(updatedCaretOffset, maxOffset));
+
+            if (updatedCaret != null)
+                EditorBox.CaretPosition = updatedCaret;
+
+            RenumberListsSafely();
             e.Handled = true;
             MarkDirty();
         }
@@ -2617,6 +2643,44 @@ public partial class MainWindow : Window
             index++;
 
         return text[..index];
+    }
+
+    private static bool IsListLine(string text)
+    {
+        string normalizedLine = text.TrimEnd('\r', '\n');
+        return ListPrefixRegex.IsMatch(normalizedLine);
+    }
+
+    private static int GetIndentLevel(string text)
+    {
+        string normalizedLine = text.TrimEnd('\r', '\n');
+        Match match = ListPrefixRegex.Match(normalizedLine);
+
+        if (!match.Success)
+            return 0;
+
+        string indentation = match.Groups["indent"].Value;
+        int spaces = 0;
+
+        foreach (char character in indentation)
+            spaces += character == '\t' ? IndentSpacesPerLevel : 1;
+
+        return spaces / IndentSpacesPerLevel;
+    }
+
+    private static string SetIndentLevel(string text, int indentLevel)
+    {
+        string normalizedLine = text.TrimEnd('\r', '\n');
+        string lineBreak = text[normalizedLine.Length..];
+
+        Match match = ListPrefixRegex.Match(normalizedLine);
+        if (!match.Success)
+            return text;
+
+        string updatedIndentation = new(' ', indentLevel * IndentSpacesPerLevel);
+        string remainder = normalizedLine[match.Groups["indent"].Length..];
+
+        return updatedIndentation + remainder + lineBreak;
     }
 
     private void ApplyNumberedListPrefixes()

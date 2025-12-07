@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Windows.Controls;
 using System.Windows.Documents;
 
@@ -8,26 +7,11 @@ namespace MGPad;
 
 internal static class ListFormatter
 {
-    private enum ListType
-    {
-        Numbered,
-        Lettered
-    }
 
     private sealed record LineInfo(TextPointer Start, TextPointer End, string Text)
     {
         public string NormalizedText => Text.TrimEnd('\r', '\n');
     }
-
-    // Regexes capture indentation, the prefix marker (number or letter), punctuation, and spacing so we
-    // can rebuild the marker without touching the rest of the line's content or formatting.
-    private static readonly Regex NumberedListRegex = new(
-        "^(?<prefix>(?<indent>\\s*)(?<marker>\\d+)(?<punct>[.)])(?<spacing>\\s+))",
-        RegexOptions.Compiled);
-
-    private static readonly Regex LetteredListRegex = new(
-        "^(?<prefix>(?<indent>\\s*)(?<marker>[A-Za-z])(?<punct>[.)])(?<spacing>\\s+))",
-        RegexOptions.Compiled);
 
     public static void RenumberLists(RichTextBox? editor)
     {
@@ -44,22 +28,22 @@ internal static class ListFormatter
 
         for (int i = 0; i < lines.Count; i++)
         {
-            if (!TryGetListMatch(lines[i].NormalizedText, out ListType listType, out Match? firstMatch))
+            if (!ListParser.TryMatchOrderedList(lines[i].NormalizedText, out OrderedListMatch firstMatch))
                 continue;
 
             int blockStart = i;
-            List<Match> blockMatches = new() { firstMatch };
+            List<OrderedListMatch> blockMatches = new() { firstMatch };
 
             i++;
             while (i < lines.Count &&
-                   TryGetListMatch(lines[i].NormalizedText, out ListType nextType, out Match? nextMatch) &&
-                   nextType == listType)
+                   ListParser.TryMatchOrderedList(lines[i].NormalizedText, out OrderedListMatch nextMatch) &&
+                   nextMatch.Type == firstMatch.Type)
             {
                 blockMatches.Add(nextMatch);
                 i++;
             }
 
-            RenumberBlock(lines, blockStart, blockMatches, listType);
+            RenumberBlock(lines, blockStart, blockMatches, firstMatch.Type);
             i--;
         }
 
@@ -85,49 +69,32 @@ internal static class ListFormatter
         }
     }
 
-    private static bool TryGetListMatch(string text, out ListType listType, out Match? match)
+    private static void RenumberBlock(
+        IReadOnlyList<LineInfo> lines,
+        int blockStart,
+        IReadOnlyList<OrderedListMatch> matches,
+        ListLineType listType)
     {
-        match = NumberedListRegex.Match(text);
-        if (match.Success)
-        {
-            listType = ListType.Numbered;
-            return true;
-        }
-
-        match = LetteredListRegex.Match(text);
-        if (match.Success)
-        {
-            listType = ListType.Lettered;
-            return true;
-        }
-
-        // Bullet markers intentionally fall through here so bullet lists remain untouched.
-        listType = default;
-        return false;
-    }
-
-    private static void RenumberBlock(IReadOnlyList<LineInfo> lines, int blockStart, IReadOnlyList<Match> matches, ListType listType)
-    {
-        bool useUppercaseLetters = listType == ListType.Lettered && char.IsUpper(matches[0].Groups["marker"].Value[0]);
+        bool useUppercaseLetters = listType == ListLineType.Lettered && matches[0].IsUppercaseLetter;
         char letterBase = useUppercaseLetters ? 'A' : 'a';
 
         for (int i = 0; i < matches.Count; i++)
         {
-            Match match = matches[i];
+            OrderedListMatch match = matches[i];
             LineInfo line = lines[blockStart + i];
 
-            string indent = match.Groups["indent"].Value;
-            string punctuation = match.Groups["punct"].Value;
-            string spacing = match.Groups["spacing"].Value;
+            string indent = match.Indent;
+            string punctuation = match.Punctuation;
+            string spacing = match.Spacing;
 
             string newMarker = listType switch
             {
-                ListType.Numbered => (i + 1).ToString(),
+                ListLineType.Numbered => (i + 1).ToString(),
                 _ => BuildLetterMarker(letterBase, i)
             };
 
-            string newPrefix = indent + newMarker + punctuation + spacing;
-            string existingPrefix = match.Groups["prefix"].Value;
+            string newPrefix = ListParser.BuildPrefix(indent, newMarker, punctuation, spacing);
+            string existingPrefix = match.ExistingPrefix;
 
             if (newPrefix == existingPrefix)
                 continue;

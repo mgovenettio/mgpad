@@ -77,7 +77,6 @@ public partial class MainWindow : Window
     private const double MinFontSize = 6;
     private const double MaxFontSize = 96;
     private const int MaxRecentDocuments = 10;
-    private const int IndentSpacesPerLevel = 4;
     private readonly List<string> _recentDocuments = new();
     private readonly string _recentDocumentsFilePath;
     private readonly DispatcherTimer _markdownPreviewTimer;
@@ -89,9 +88,6 @@ public partial class MainWindow : Window
         { 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72 };
     private static readonly Regex NumberRegex = new(
         "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?",
-        RegexOptions.Compiled);
-    private static readonly Regex ListPrefixRegex = new(
-        "^(?<indent>\\s*)(?:(?<number>\\d+)|(?<letter>[A-Za-z])|(?<bullet>[\\*-]))(?<punct>[.)])?\\s+",
         RegexOptions.Compiled);
     private readonly MarkdownPipeline _markdownPipeline;
     private readonly AutosaveService _autosaveService;
@@ -2164,7 +2160,7 @@ public partial class MainWindow : Window
     {
         string paragraphText = string.Concat(paragraph.Runs.Select(r => r.Text));
 
-        if (!TryParseListLine(paragraphText, out parsedLine))
+        if (!ListParser.TryParseListLine(paragraphText, out parsedLine))
         {
             contentRuns = paragraph.Runs.ToList();
             return false;
@@ -2815,10 +2811,7 @@ public partial class MainWindow : Window
                 ? Math.Max(0, currentIndentLevel - 1)
                 : currentIndentLevel + 1;
 
-            string normalizedLine = lineText.TrimEnd('\r', '\n');
-            Match match = ListPrefixRegex.Match(normalizedLine);
-
-            if (!match.Success)
+            if (!ListParser.TryMatchListPrefix(lineText, out Match match))
                 return;
 
             string originalIndentation = match.Groups["indent"].Value;
@@ -2828,7 +2821,7 @@ public partial class MainWindow : Window
 
             ReplaceLineText(lineStart, lineEnd, updatedLine);
 
-            int newIndentLength = targetIndentLevel * IndentSpacesPerLevel;
+            int newIndentLength = targetIndentLevel * ListParser.IndentSpacesPerLevel;
             int updatedCaretOffset = Math.Max(0, caretOffset + (newIndentLength - originalIndentation.Length));
             int maxOffset = Math.Max(0, updatedLine.Length - 1);
 
@@ -2916,35 +2909,17 @@ public partial class MainWindow : Window
 
     private static bool IsListLine(string text)
     {
-        string normalizedLine = text.TrimEnd('\r', '\n');
-        return ListPrefixRegex.IsMatch(normalizedLine);
+        return ListParser.IsListLine(text);
     }
 
     private static int GetIndentLevel(string text)
     {
-        string normalizedLine = text.TrimEnd('\r', '\n');
-        Match match = ListPrefixRegex.Match(normalizedLine);
-
-        if (!match.Success)
-            return 0;
-
-        string indentation = match.Groups["indent"].Value;
-        return GetIndentLevelFromIndent(indentation);
+        return ListParser.GetIndentLevel(text);
     }
 
     private static string SetIndentLevel(string text, int indentLevel)
     {
-        string normalizedLine = text.TrimEnd('\r', '\n');
-        string lineBreak = text[normalizedLine.Length..];
-
-        Match match = ListPrefixRegex.Match(normalizedLine);
-        if (!match.Success)
-            return text;
-
-        string updatedIndentation = new(' ', indentLevel * IndentSpacesPerLevel);
-        string remainder = normalizedLine[match.Groups["indent"].Length..];
-
-        return updatedIndentation + remainder + lineBreak;
+        return ListParser.SetIndentLevel(text, indentLevel);
     }
 
     private void ApplyNumberedListPrefixes()
@@ -2980,7 +2955,7 @@ public partial class MainWindow : Window
         {
             string content = lines[i].Content;
 
-            if (string.IsNullOrWhiteSpace(content) || ListPrefixRegex.IsMatch(content))
+            if (string.IsNullOrWhiteSpace(content) || ListParser.IsListLine(content))
                 continue;
 
             string indentation = GetLineIndentation(content);
@@ -3027,9 +3002,7 @@ public partial class MainWindow : Window
         foreach (SelectionLine line in GetSelectedLines().ToList())
         {
             string content = line.Content;
-            Match match = ListPrefixRegex.Match(content);
-
-            if (!match.Success)
+            if (!ListParser.TryMatchListPrefix(content, out Match match))
                 continue;
 
             string indentation = match.Groups["indent"].Value;
@@ -3058,75 +3031,12 @@ public partial class MainWindow : Window
             EditorBox.CaretPosition = newCaretPosition;
     }
 
-    private enum ListLineType
-    {
-        Numbered,
-        Lettered,
-        Bullet
-    }
-
-    private sealed record ParsedListLine(
-        string IndentText,
-        int IndentLevel,
-        ListLineType Type,
-        string Marker,
-        string Punctuation,
-        string Spacing,
-        string Content,
-        string LineBreak,
-        bool IsUppercaseLetter);
-
     private sealed class ListLevelState
     {
         public ListLineType Type { get; init; }
         public string BulletSymbol { get; init; } = string.Empty;
         public bool UseUppercaseLetters { get; init; }
         public int ItemCount { get; set; }
-    }
-
-    private static bool TryParseListLine(string lineText, out ParsedListLine parsedLine)
-    {
-        parsedLine = default!;
-
-        string normalizedLine = lineText.TrimEnd('\r', '\n');
-        Match match = ListPrefixRegex.Match(normalizedLine);
-
-        if (!match.Success)
-            return false;
-
-        string indentation = match.Groups["indent"].Value;
-        string marker = match.Groups["number"].Success
-            ? match.Groups["number"].Value
-            : (match.Groups["letter"].Success
-                ? match.Groups["letter"].Value
-                : match.Groups["bullet"].Value);
-
-        ListLineType type = match.Groups["number"].Success
-            ? ListLineType.Numbered
-            : (match.Groups["letter"].Success ? ListLineType.Lettered : ListLineType.Bullet);
-
-        parsedLine = new ParsedListLine(
-            indentation,
-            GetIndentLevelFromIndent(indentation),
-            type,
-            marker,
-            match.Groups["punct"].Value,
-            match.Groups["spacing"].Value,
-            normalizedLine[match.Length..],
-            lineText[normalizedLine.Length..],
-            match.Groups["letter"].Success && char.IsUpper(match.Groups["letter"].Value[0]));
-
-        return true;
-    }
-
-    private static int GetIndentLevelFromIndent(string indentation)
-    {
-        int spaces = 0;
-
-        foreach (char character in indentation)
-            spaces += character == '\t' ? IndentSpacesPerLevel : 1;
-
-        return spaces / IndentSpacesPerLevel;
     }
 
     private static ListLevelState CreateLevelState(ParsedListLine parsedLine)
@@ -3176,7 +3086,7 @@ public partial class MainWindow : Window
 
             string lineText = new TextRange(lineStart, lineEnd).Text;
 
-            if (TryParseListLine(lineText, out ParsedListLine parsedLine))
+            if (ListParser.TryParseListLine(lineText, out ParsedListLine parsedLine))
                 UpdateListLevelStates(states, parsedLine);
 
             if (lineStart.CompareTo(currentLineStart) == 0)
@@ -3186,16 +3096,6 @@ public partial class MainWindow : Window
         }
 
         return states;
-    }
-
-    private static string BuildLetterMarker(int index, bool useUppercase)
-    {
-        char letterBase = useUppercase ? 'A' : 'a';
-        int zeroBasedIndex = Math.Max(0, index - 1);
-        int maxOffset = (useUppercase ? 'Z' : 'z') - letterBase;
-        int clamped = Math.Min(zeroBasedIndex, maxOffset);
-
-        return ((char)(letterBase + clamped)).ToString();
     }
 
     private static string GetNextListMarker(List<ListLevelState> states, ParsedListLine currentLine)
@@ -3208,7 +3108,7 @@ public partial class MainWindow : Window
         return state.Type switch
         {
             ListLineType.Numbered => (state.ItemCount + 1).ToString(),
-            ListLineType.Lettered => BuildLetterMarker(state.ItemCount + 1, state.UseUppercaseLetters),
+            ListLineType.Lettered => ListParser.BuildLetterMarker(state.ItemCount + 1, state.UseUppercaseLetters),
             ListLineType.Bullet => state.BulletSymbol,
             _ => string.Empty
         };
@@ -3222,7 +3122,7 @@ public partial class MainWindow : Window
         if (!GetCurrentLineTextAndOffsets(out string lineText, out TextPointer lineStart, out TextPointer lineEnd))
             return false;
 
-        if (!TryParseListLine(lineText, out ParsedListLine parsedLine))
+        if (!ListParser.TryParseListLine(lineText, out ParsedListLine parsedLine))
             return false;
 
         if (string.IsNullOrWhiteSpace(parsedLine.Content))
@@ -3244,7 +3144,7 @@ public partial class MainWindow : Window
         List<ListLevelState> levelStates = BuildListLevelStates(lineStart);
         string nextMarker = GetNextListMarker(levelStates, parsedLine);
 
-        string prefix = parsedLine.IndentText + nextMarker + parsedLine.Punctuation + parsedLine.Spacing;
+        string prefix = ListParser.BuildPrefix(parsedLine.IndentText, nextMarker, parsedLine.Punctuation, parsedLine.Spacing);
 
         InsertNewLineWithPrefix(prefix);
         MarkDirty();
@@ -3740,7 +3640,7 @@ public partial class MainWindow : Window
         if (EditorBox == null)
             return false;
 
-        return GetSelectedLines().Any(line => ListPrefixRegex.IsMatch(line.Content));
+        return GetSelectedLines().Any(line => ListParser.IsListLine(line.Content));
     }
 
     private void UpdateFormattingControls()

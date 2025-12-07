@@ -130,14 +130,26 @@
         </Menu>
         <ToolBarTray Grid.Row="1">
             <ToolBar>
-                <ToggleButton x:Name="BoldButton" Content="B" Click="BoldButton_Click" />
-                <ToggleButton x:Name="ItalicButton" Content="I" Click="ItalicButton_Click" />
-                <ToggleButton x:Name="UnderlineButton" Content="U" Click="UnderlineButton_Click" />
+                <ToggleButton x:Name="BoldButton"
+                              Content="B"
+                              ToolTip="Bold (Ctrl+B)"
+                              Click="BoldButton_Click" />
+                <ToggleButton x:Name="ItalicButton"
+                              Content="I"
+                              ToolTip="Italic (Ctrl+I)"
+                              Click="ItalicButton_Click" />
+                <ToggleButton x:Name="UnderlineButton"
+                              Content="U"
+                              ToolTip="Underline (Ctrl+U)"
+                              Click="UnderlineButton_Click" />
                 <ToggleButton x:Name="MonospacedButton"
                               Content="Monospace"
-                              ToolTip="Toggle monospaced (even-spacing) font. Shortcut: Ctrl+Shift+M"
+                              ToolTip="Monospace (Ctrl+Shift+M)"
                               Click="MonospacedButton_Click" />
-                <ToggleButton x:Name="StrikethroughButton" Content="S" Click="StrikethroughButton_Click" />
+                <ToggleButton x:Name="StrikethroughButton"
+                              Content="S"
+                              ToolTip="Strikethrough (Ctrl+Shift+X)"
+                              Click="StrikethroughButton_Click" />
                 <Separator />
                 <Button x:Name="NumberedListButton"
                         Content="Numbered List"
@@ -169,19 +181,23 @@
                           LostKeyboardFocus="FontSizeComboBox_LostFocus"
                           PreviewKeyDown="FontSizeComboBox_PreviewKeyDown" />
                 <Separator />
-                <Button x:Name="AlignLeftButton" Content="L" Click="AlignLeftButton_Click" />
-                <Button x:Name="AlignCenterButton" Content="C" Click="AlignCenterButton_Click" />
-                <Button x:Name="AlignRightButton" Content="R" Click="AlignRightButton_Click" />
+                <Button x:Name="AlignLeftButton" Content="L" ToolTip="Align left" Click="AlignLeftButton_Click" />
+                <Button x:Name="AlignCenterButton" Content="C" ToolTip="Align center" Click="AlignCenterButton_Click" />
+                <Button x:Name="AlignRightButton" Content="R" ToolTip="Align right" Click="AlignRightButton_Click" />
                 <Separator />
                 <Button x:Name="ToggleLanguageButton"
                         Content="JP/EN"
+                        ToolTip="Toggle input language (Ctrl+J)"
                         Click="ToggleLanguageButton_Click" />
                 <Separator />
                 <Button x:Name="NightModeButton"
                         Content="Night"
                         Click="NightModeButton_Click" />
                 <Separator />
-                <Button x:Name="TimestampButton" Content="TS" Click="TimestampButton_Click" />
+                <Button x:Name="TimestampButton"
+                        Content="TS"
+                        ToolTip="Insert timestamp (Alt+Shift+T)"
+                        Click="TimestampButton_Click" />
             </ToolBar>
         </ToolBarTray>
 

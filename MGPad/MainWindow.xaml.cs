@@ -2509,21 +2509,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (EditorBox != null)
-        {
-            // Renumber inline list prefixes after edits. The helper tracks the caret's line/column so
-            // replacements keep the caret near the user's previous location instead of jumping to the
-            // document start.
-            try
-            {
-                _isRenumberingLists = true;
-                ListFormatter.RenumberLists(EditorBox);
-            }
-            finally
-            {
-                _isRenumberingLists = false;
-            }
-        }
+        // Renumber inline list prefixes after edits. The helper tracks the caret's line/column so
+        // replacements keep the caret near the user's previous location instead of jumping to the
+        // document start.
+        RenumberListsSafely();
 
         MarkDirty();
         ScheduleMarkdownPreviewUpdate();
@@ -2632,7 +2621,7 @@ public partial class MainWindow : Window
 
     private void ApplyNumberedListPrefixes()
     {
-        ApplyListPrefixes(index => $"{index + 1}. ");
+        ApplyListPrefixes(index => $"{index + 1}. ", renumberAfterChange: true);
     }
 
     private void ApplyLetteredListPrefixes()
@@ -2642,7 +2631,7 @@ public partial class MainWindow : Window
             int clamped = Math.Min(index, 'z' - 'a');
             char marker = (char)('a' + clamped);
             return $"{marker}. ";
-        });
+        }, renumberAfterChange: true);
     }
 
     private void ApplyBulletedListPrefixes()
@@ -2650,12 +2639,14 @@ public partial class MainWindow : Window
         ApplyListPrefixes(_ => "* ");
     }
 
-    private void ApplyListPrefixes(Func<int, string> prefixBuilder)
+    private void ApplyListPrefixes(Func<int, string> prefixBuilder, bool renumberAfterChange = false)
     {
         if (EditorBox == null || !CanFormat())
             return;
 
         List<SelectionLine> lines = GetSelectedLines().ToList();
+
+        bool madeChanges = false;
 
         for (int i = 0; i < lines.Count; i++)
         {
@@ -2669,9 +2660,35 @@ public partial class MainWindow : Window
             string newText = indentation + prefixBuilder(i) + remainder + lines[i].LineBreak;
 
             new TextRange(lines[i].Start, lines[i].End).Text = newText;
+            madeChanges = true;
         }
 
+        if (renumberAfterChange && madeChanges)
+            RenumberListsSafely();
+
+        if (!madeChanges)
+            return;
+
         MarkDirty();
+    }
+
+    private void RenumberListsSafely()
+    {
+        if (EditorBox == null)
+            return;
+
+        if (_isRenumberingLists)
+            return;
+
+        try
+        {
+            _isRenumberingLists = true;
+            ListFormatter.RenumberLists(EditorBox);
+        }
+        finally
+        {
+            _isRenumberingLists = false;
+        }
     }
 
     private void StripListPrefixes()

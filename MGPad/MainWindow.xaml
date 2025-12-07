@@ -99,7 +99,24 @@
                           IsCheckable="true"
                           Click="MarkdownModeMenuItem_Click" />
             </MenuItem>
-            <MenuItem Header="F_ormat" />
+            <MenuItem Header="F_ormat">
+                <MenuItem x:Name="NumberedListMenuItem"
+                          Header="_Numbered List"
+                          Click="NumberedListMenuItem_Click"
+                          ToolTip="Apply or remove a numbered list to the selected paragraphs." />
+                <MenuItem x:Name="LetteredListMenuItem"
+                          Header="_Lettered List"
+                          Click="LetteredListMenuItem_Click"
+                          ToolTip="Apply or remove a lettered list to the selected paragraphs." />
+                <MenuItem x:Name="BulletedListMenuItem"
+                          Header="_Bulleted List"
+                          Click="BulletedListMenuItem_Click"
+                          ToolTip="Apply or remove a bulleted list to the selected paragraphs." />
+                <MenuItem x:Name="ClearListFormattingMenuItem"
+                          Header="_Clear List Formatting"
+                          Click="ClearListFormattingMenuItem_Click"
+                          ToolTip="Remove list formatting from the selected paragraphs." />
+            </MenuItem>
             <MenuItem Header="_Tools">
                 <MenuItem x:Name="InsertTimestampMenuItem"
                           Header="_Insert Timestamp"
@@ -119,8 +136,22 @@
                               Click="MonospacedButton_Click" />
                 <ToggleButton x:Name="StrikethroughButton" Content="S" Click="StrikethroughButton_Click" />
                 <Separator />
-                <Button x:Name="BulletedListButton" Content="•" Click="BulletedListButton_Click" />
-                <Button x:Name="NumberedListButton" Content="1." Click="NumberedListButton_Click" />
+                <Button x:Name="NumberedListButton"
+                        Content="Numbered List"
+                        ToolTip="Apply or remove a numbered list to the selected paragraphs."
+                        Click="NumberedListButton_Click" />
+                <Button x:Name="LetteredListButton"
+                        Content="Lettered List"
+                        ToolTip="Apply or remove a lettered list to the selected paragraphs."
+                        Click="LetteredListButton_Click" />
+                <Button x:Name="BulletedListButton"
+                        Content="Bulleted List"
+                        ToolTip="Apply or remove a bulleted list to the selected paragraphs."
+                        Click="BulletedListButton_Click" />
+                <Button x:Name="ClearListFormattingButton"
+                        Content="Clear List Formatting"
+                        ToolTip="Remove list formatting from the selected paragraphs."
+                        Click="ClearListFormattingButton_Click" />
                 <Separator />
                 <ComboBox x:Name="FontFamilyComboBox"
                           Width="180"

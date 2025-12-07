@@ -3040,6 +3040,93 @@ public partial class MainWindow : Window
         EditingCommands.ToggleNumbering.Execute(null, EditorBox);
     }
 
+    private void ToggleLetteredList()
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        ApplyListStyle(TextMarkerStyle.LowerLatin);
+    }
+
+    private void ClearListFormatting()
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        System.Windows.Documents.List? list = GetAncestorList(EditorBox.Selection.Start)
+            ?? GetAncestorList(EditorBox.Selection.End);
+
+        if (list == null)
+            return;
+
+        foreach (ListItem item in list.ListItems.ToList())
+        {
+            foreach (Block block in item.Blocks.ToList())
+            {
+                item.Blocks.Remove(block);
+                InsertBlockBefore(list, block);
+            }
+        }
+
+        RemoveListContainer(list);
+    }
+
+    private void ApplyListStyle(TextMarkerStyle markerStyle)
+    {
+        if (EditorBox == null)
+            return;
+
+        TextSelection selection = EditorBox.Selection;
+        System.Windows.Documents.List? currentList = GetAncestorList(selection.Start)
+            ?? GetAncestorList(selection.End);
+
+        if (currentList != null && currentList.MarkerStyle == markerStyle)
+        {
+            ClearListFormatting();
+            return;
+        }
+
+        EditingCommands.ToggleNumbering.Execute(null, EditorBox);
+
+        System.Windows.Documents.List? updatedList = GetAncestorList(selection.Start)
+            ?? GetAncestorList(selection.End);
+
+        if (updatedList != null)
+            updatedList.MarkerStyle = markerStyle;
+    }
+
+    private static void InsertBlockBefore(Block reference, Block newBlock)
+    {
+        if (reference.Parent is FlowDocument document)
+        {
+            document.Blocks.InsertBefore(reference, newBlock);
+        }
+        else if (reference.Parent is Section section)
+        {
+            section.Blocks.InsertBefore(reference, newBlock);
+        }
+        else if (reference.Parent is ListItem listItem)
+        {
+            listItem.Blocks.InsertBefore(reference, newBlock);
+        }
+    }
+
+    private static void RemoveListContainer(System.Windows.Documents.List list)
+    {
+        if (list.Parent is FlowDocument document)
+        {
+            document.Blocks.Remove(list);
+        }
+        else if (list.Parent is Section section)
+        {
+            section.Blocks.Remove(list);
+        }
+        else if (list.Parent is ListItem listItem)
+        {
+            listItem.Blocks.Remove(list);
+        }
+    }
+
     private void BoldButton_Click(object sender, RoutedEventArgs e)
     {
         if (!CanFormat())
@@ -3090,6 +3177,11 @@ public partial class MainWindow : Window
         MarkDirty();
     }
 
+    private void BulletedListMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        BulletedListButton_Click(sender, e);
+    }
+
     private void NumberedListButton_Click(object sender, RoutedEventArgs e)
     {
         if (!CanFormat())
@@ -3097,6 +3189,39 @@ public partial class MainWindow : Window
 
         ToggleNumberedList();
         MarkDirty();
+    }
+
+    private void NumberedListMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        NumberedListButton_Click(sender, e);
+    }
+
+    private void LetteredListButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        ToggleLetteredList();
+        MarkDirty();
+    }
+
+    private void LetteredListMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        LetteredListButton_Click(sender, e);
+    }
+
+    private void ClearListFormattingButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        ClearListFormatting();
+        MarkDirty();
+    }
+
+    private void ClearListFormattingMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        ClearListFormattingButton_Click(sender, e);
     }
 
     private bool CanFormat()
@@ -3162,6 +3287,18 @@ public partial class MainWindow : Window
             BulletedListButton.IsEnabled = canFormat;
         if (NumberedListButton != null)
             NumberedListButton.IsEnabled = canFormat;
+        if (LetteredListButton != null)
+            LetteredListButton.IsEnabled = canFormat;
+        if (ClearListFormattingButton != null)
+            ClearListFormattingButton.IsEnabled = canFormat && IsSelectionInList();
+        if (NumberedListMenuItem != null)
+            NumberedListMenuItem.IsEnabled = canFormat;
+        if (LetteredListMenuItem != null)
+            LetteredListMenuItem.IsEnabled = canFormat;
+        if (BulletedListMenuItem != null)
+            BulletedListMenuItem.IsEnabled = canFormat;
+        if (ClearListFormattingMenuItem != null)
+            ClearListFormattingMenuItem.IsEnabled = canFormat && IsSelectionInList();
         if (AlignLeftButton != null)
             AlignLeftButton.IsEnabled = canFormat;
         if (AlignCenterButton != null)

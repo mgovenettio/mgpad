@@ -77,6 +77,9 @@
                 <MenuItem x:Name="ExportPdfMenuItem"
                           Header="E_xport as PDF..."
                           Click="ExportPdfMenuItem_Click" />
+                <MenuItem x:Name="ExportMarkdownMenuItem"
+                          Header="Export as _Markdown (.md)..."
+                          Click="ExportMarkdownMenuItem_Click" />
                 <MenuItem x:Name="ExportOdtMenuItem"
                           Header="Export as O_DT..."
                           Click="ExportOdtMenuItem_Click" />

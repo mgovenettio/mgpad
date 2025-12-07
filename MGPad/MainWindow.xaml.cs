@@ -1398,6 +1398,45 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ExportMarkdownMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Export as Markdown",
+                Filter = "Markdown Files (*.md)|*.md|All Files (*.*)|*.*",
+                DefaultExt = ".md",
+                FileName = !string.IsNullOrEmpty(_currentFilePath)
+                    ? Path.GetFileNameWithoutExtension(_currentFilePath) + ".md"
+                    : "Document.md",
+            };
+
+            bool? result = dialog.ShowDialog(this);
+            if (result != true)
+                return;
+
+            string markdownPath = dialog.FileName;
+
+            if (!TryWriteDocument(markdownPath, DocumentType.Markdown, showErrors: true, applyMarkdownMode: false))
+                return;
+
+            MessageBox.Show(this,
+                "Markdown export completed:\n" + markdownPath,
+                "Export as Markdown",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                "Failed to export Markdown.\n\n" + ex.Message,
+                "Export as Markdown",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
     private void ExportOdtMenuItem_Click(object sender, RoutedEventArgs e)
     {
         try

@@ -2660,12 +2660,7 @@ public partial class MainWindow : Window
             return 0;
 
         string indentation = match.Groups["indent"].Value;
-        int spaces = 0;
-
-        foreach (char character in indentation)
-            spaces += character == '\t' ? IndentSpacesPerLevel : 1;
-
-        return spaces / IndentSpacesPerLevel;
+        return GetIndentLevelFromIndent(indentation);
     }
 
     private static string SetIndentLevel(string text, int indentLevel)
@@ -2794,6 +2789,162 @@ public partial class MainWindow : Window
             EditorBox.CaretPosition = newCaretPosition;
     }
 
+    private enum ListLineType
+    {
+        Numbered,
+        Lettered,
+        Bullet
+    }
+
+    private sealed record ParsedListLine(
+        string IndentText,
+        int IndentLevel,
+        ListLineType Type,
+        string Marker,
+        string Punctuation,
+        string Spacing,
+        string Content,
+        string LineBreak,
+        bool IsUppercaseLetter);
+
+    private sealed class ListLevelState
+    {
+        public ListLineType Type { get; init; }
+        public string BulletSymbol { get; init; } = string.Empty;
+        public bool UseUppercaseLetters { get; init; }
+        public int ItemCount { get; set; }
+    }
+
+    private static bool TryParseListLine(string lineText, out ParsedListLine parsedLine)
+    {
+        parsedLine = default!;
+
+        string normalizedLine = lineText.TrimEnd('\r', '\n');
+        Match match = ListPrefixRegex.Match(normalizedLine);
+
+        if (!match.Success)
+            return false;
+
+        string indentation = match.Groups["indent"].Value;
+        string marker = match.Groups["number"].Success
+            ? match.Groups["number"].Value
+            : (match.Groups["letter"].Success
+                ? match.Groups["letter"].Value
+                : match.Groups["bullet"].Value);
+
+        ListLineType type = match.Groups["number"].Success
+            ? ListLineType.Numbered
+            : (match.Groups["letter"].Success ? ListLineType.Lettered : ListLineType.Bullet);
+
+        parsedLine = new ParsedListLine(
+            indentation,
+            GetIndentLevelFromIndent(indentation),
+            type,
+            marker,
+            match.Groups["punct"].Value,
+            match.Groups["spacing"].Value,
+            normalizedLine[match.Length..],
+            lineText[normalizedLine.Length..],
+            match.Groups["letter"].Success && char.IsUpper(match.Groups["letter"].Value[0]));
+
+        return true;
+    }
+
+    private static int GetIndentLevelFromIndent(string indentation)
+    {
+        int spaces = 0;
+
+        foreach (char character in indentation)
+            spaces += character == '\t' ? IndentSpacesPerLevel : 1;
+
+        return spaces / IndentSpacesPerLevel;
+    }
+
+    private static ListLevelState CreateLevelState(ParsedListLine parsedLine)
+    {
+        return new ListLevelState
+        {
+            Type = parsedLine.Type,
+            BulletSymbol = parsedLine.Type == ListLineType.Bullet ? parsedLine.Marker : string.Empty,
+            UseUppercaseLetters = parsedLine.Type == ListLineType.Lettered && parsedLine.IsUppercaseLetter,
+            ItemCount = 0
+        };
+    }
+
+    private static void UpdateListLevelStates(List<ListLevelState> states, ParsedListLine parsedLine)
+    {
+        while (states.Count > parsedLine.IndentLevel + 1)
+            states.RemoveAt(states.Count - 1);
+
+        while (states.Count <= parsedLine.IndentLevel)
+            states.Add(CreateLevelState(parsedLine));
+
+        ListLevelState levelState = states[parsedLine.IndentLevel];
+
+        if (levelState.Type != parsedLine.Type ||
+            (parsedLine.Type == ListLineType.Bullet && levelState.BulletSymbol != parsedLine.Marker) ||
+            (parsedLine.Type == ListLineType.Lettered && levelState.UseUppercaseLetters != parsedLine.IsUppercaseLetter))
+        {
+            states[parsedLine.IndentLevel] = CreateLevelState(parsedLine);
+        }
+
+        states[parsedLine.IndentLevel].ItemCount++;
+    }
+
+    private List<ListLevelState> BuildListLevelStates(TextPointer currentLineStart)
+    {
+        List<ListLevelState> states = new();
+
+        if (EditorBox?.Document == null)
+            return states;
+
+        TextPointer? lineStart = EditorBox.Document.ContentStart.GetLineStartPosition(0);
+
+        while (lineStart != null)
+        {
+            TextPointer? nextLineStart = lineStart.GetLineStartPosition(1);
+            TextPointer lineEnd = nextLineStart ?? EditorBox.Document.ContentEnd;
+
+            string lineText = new TextRange(lineStart, lineEnd).Text;
+
+            if (TryParseListLine(lineText, out ParsedListLine parsedLine))
+                UpdateListLevelStates(states, parsedLine);
+
+            if (lineStart.CompareTo(currentLineStart) == 0)
+                break;
+
+            lineStart = nextLineStart;
+        }
+
+        return states;
+    }
+
+    private static string BuildLetterMarker(int index, bool useUppercase)
+    {
+        char letterBase = useUppercase ? 'A' : 'a';
+        int zeroBasedIndex = Math.Max(0, index - 1);
+        int maxOffset = (useUppercase ? 'Z' : 'z') - letterBase;
+        int clamped = Math.Min(zeroBasedIndex, maxOffset);
+
+        return ((char)(letterBase + clamped)).ToString();
+    }
+
+    private static string GetNextListMarker(List<ListLevelState> states, ParsedListLine currentLine)
+    {
+        if (states.Count <= currentLine.IndentLevel)
+            return string.Empty;
+
+        ListLevelState state = states[currentLine.IndentLevel];
+
+        return state.Type switch
+        {
+            ListLineType.Numbered => (state.ItemCount + 1).ToString(),
+            ListLineType.Lettered => BuildLetterMarker(state.ItemCount + 1, state.UseUppercaseLetters),
+            ListLineType.Bullet => state.BulletSymbol,
+            _ => string.Empty
+        };
+    }
+
     private bool TryHandleEnterWithListPrefix()
     {
         if (EditorBox == null)
@@ -2802,51 +2953,29 @@ public partial class MainWindow : Window
         if (!GetCurrentLineTextAndOffsets(out string lineText, out TextPointer lineStart, out TextPointer lineEnd))
             return false;
 
-        string normalizedLine = lineText.TrimEnd('\r', '\n');
-
-        var match = Regex.Match(
-            normalizedLine,
-            "^(?<indent>\\s*)(?:(?<number>\\d+)|(?<letter>[A-Za-z])|(?<bullet>[\\*-]))(?<punct>[.)])?(?<spacing>\\s+)(?<content>.*)$");
-
-        if (!match.Success)
+        if (!TryParseListLine(lineText, out ParsedListLine parsedLine))
             return false;
 
-        string content = match.Groups["content"].Value;
-
-        if (string.IsNullOrWhiteSpace(content))
+        if (string.IsNullOrWhiteSpace(parsedLine.Content))
         {
-            ReplaceLineText(lineStart, lineEnd, string.Empty);
+            string lineBreak = string.IsNullOrEmpty(parsedLine.LineBreak)
+                ? Environment.NewLine
+                : parsedLine.LineBreak;
+
+            ReplaceLineText(lineStart, lineEnd, lineBreak);
+
+            TextPointer? caret = lineStart.GetPositionAtOffset(lineBreak.Length);
+            if (caret != null)
+                EditorBox.CaretPosition = caret;
+
             MarkDirty();
             return true;
         }
 
-        string indent = match.Groups["indent"].Value;
-        string punctuation = match.Groups["punct"].Value;
-        string spacing = match.Groups["spacing"].Value;
-        string nextMarker = string.Empty;
+        List<ListLevelState> levelStates = BuildListLevelStates(lineStart);
+        string nextMarker = GetNextListMarker(levelStates, parsedLine);
 
-        if (match.Groups["number"].Success)
-        {
-            int.TryParse(match.Groups["number"].Value, out int numberValue);
-            nextMarker = (numberValue + 1).ToString();
-        }
-        else if (match.Groups["letter"].Success)
-        {
-            char letterValue = match.Groups["letter"].Value[0];
-
-            // Letters increment alphabetically until they reach Z/z, where they clamp to the
-            // final character instead of wrapping back to A/a to avoid surprising numbering.
-            if ((letterValue >= 'a' && letterValue < 'z') || (letterValue >= 'A' && letterValue < 'Z'))
-                letterValue++;
-
-            nextMarker = letterValue.ToString();
-        }
-        else if (match.Groups["bullet"].Success)
-        {
-            nextMarker = match.Groups["bullet"].Value;
-        }
-
-        string prefix = indent + nextMarker + punctuation + spacing;
+        string prefix = parsedLine.IndentText + nextMarker + parsedLine.Punctuation + parsedLine.Spacing;
 
         InsertNewLineWithPrefix(prefix);
         MarkDirty();

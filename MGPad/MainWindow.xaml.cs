@@ -89,6 +89,9 @@ public partial class MainWindow : Window
     private static readonly Regex NumberRegex = new(
         "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?",
         RegexOptions.Compiled);
+    private static readonly Regex ListPrefixRegex = new(
+        "^(?<indent>\\s*)(?:(?<number>\\d+)|(?<letter>[A-Za-z])|(?<bullet>[\\*-]))(?<punct>[.)])?\\s+",
+        RegexOptions.Compiled);
     private readonly MarkdownPipeline _markdownPipeline;
     private readonly AutosaveService _autosaveService;
     private Guid _untitledDocumentId = Guid.NewGuid();
@@ -2582,6 +2585,116 @@ public partial class MainWindow : Window
         new TextRange(lineStart, lineEnd).Text = text;
     }
 
+    private sealed record SelectionLine(TextPointer Start, TextPointer End, string Text)
+    {
+        public string Content => Text.TrimEnd('\r', '\n');
+
+        public string LineBreak => Text[Content.Length..];
+    }
+
+    private IEnumerable<SelectionLine> GetSelectedLines()
+    {
+        if (EditorBox?.Document == null)
+            yield break;
+
+        TextPointer selectionStart = EditorBox.Selection.Start;
+        TextPointer selectionEnd = EditorBox.Selection.End;
+
+        TextPointer currentLineStart = selectionStart.GetLineStartPosition(0) ?? selectionStart;
+        TextPointer finalLineStart = selectionEnd.GetLineStartPosition(0) ?? selectionEnd;
+
+        TextPointer? lineStart = currentLineStart;
+        while (lineStart != null)
+        {
+            TextPointer? nextLineStart = lineStart.GetLineStartPosition(1);
+            TextPointer lineEnd = nextLineStart ?? EditorBox.Document.ContentEnd;
+
+            yield return new SelectionLine(lineStart, lineEnd, new TextRange(lineStart, lineEnd).Text);
+
+            if (lineStart.CompareTo(finalLineStart) == 0)
+                yield break;
+
+            if (nextLineStart == null || nextLineStart.CompareTo(finalLineStart) > 0)
+                lineStart = finalLineStart;
+            else
+                lineStart = nextLineStart;
+        }
+    }
+
+    private static string GetLineIndentation(string text)
+    {
+        int index = 0;
+        while (index < text.Length && char.IsWhiteSpace(text[index]))
+            index++;
+
+        return text[..index];
+    }
+
+    private void ApplyNumberedListPrefixes()
+    {
+        ApplyListPrefixes(index => $"{index + 1}. ");
+    }
+
+    private void ApplyLetteredListPrefixes()
+    {
+        ApplyListPrefixes(index =>
+        {
+            int clamped = Math.Min(index, 'z' - 'a');
+            char marker = (char)('a' + clamped);
+            return $"{marker}. ";
+        });
+    }
+
+    private void ApplyBulletedListPrefixes()
+    {
+        ApplyListPrefixes(_ => "* ");
+    }
+
+    private void ApplyListPrefixes(Func<int, string> prefixBuilder)
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        List<SelectionLine> lines = GetSelectedLines().ToList();
+
+        for (int i = 0; i < lines.Count; i++)
+        {
+            string content = lines[i].Content;
+
+            if (string.IsNullOrWhiteSpace(content) || ListPrefixRegex.IsMatch(content))
+                continue;
+
+            string indentation = GetLineIndentation(content);
+            string remainder = content[indentation.Length..];
+            string newText = indentation + prefixBuilder(i) + remainder + lines[i].LineBreak;
+
+            new TextRange(lines[i].Start, lines[i].End).Text = newText;
+        }
+
+        MarkDirty();
+    }
+
+    private void StripListPrefixes()
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        foreach (SelectionLine line in GetSelectedLines().ToList())
+        {
+            string content = line.Content;
+            Match match = ListPrefixRegex.Match(content);
+
+            if (!match.Success)
+                continue;
+
+            string indentation = match.Groups["indent"].Value;
+            string updatedContent = indentation + content[match.Length..] + line.LineBreak;
+            new TextRange(line.Start, line.End).Text = updatedContent;
+        }
+
+        MarkDirty();
+    }
+
     private void InsertNewLineWithPrefix(string prefix)
     {
         if (EditorBox == null)
@@ -3026,105 +3139,22 @@ public partial class MainWindow : Window
 
     private void ToggleBulletedList()
     {
-        if (EditorBox == null || !CanFormat())
-            return;
-
-        EditingCommands.ToggleBullets.Execute(null, EditorBox);
+        ApplyBulletedListPrefixes();
     }
 
     private void ToggleNumberedList()
     {
-        if (EditorBox == null || !CanFormat())
-            return;
-
-        EditingCommands.ToggleNumbering.Execute(null, EditorBox);
+        ApplyNumberedListPrefixes();
     }
 
     private void ToggleLetteredList()
     {
-        if (EditorBox == null || !CanFormat())
-            return;
-
-        ApplyListStyle(TextMarkerStyle.LowerLatin);
+        ApplyLetteredListPrefixes();
     }
 
     private void ClearListFormatting()
     {
-        if (EditorBox == null || !CanFormat())
-            return;
-
-        System.Windows.Documents.List? list = GetAncestorList(EditorBox.Selection.Start)
-            ?? GetAncestorList(EditorBox.Selection.End);
-
-        if (list == null)
-            return;
-
-        foreach (ListItem item in list.ListItems.ToList())
-        {
-            foreach (Block block in item.Blocks.ToList())
-            {
-                item.Blocks.Remove(block);
-                InsertBlockBefore(list, block);
-            }
-        }
-
-        RemoveListContainer(list);
-    }
-
-    private void ApplyListStyle(TextMarkerStyle markerStyle)
-    {
-        if (EditorBox == null)
-            return;
-
-        TextSelection selection = EditorBox.Selection;
-        System.Windows.Documents.List? currentList = GetAncestorList(selection.Start)
-            ?? GetAncestorList(selection.End);
-
-        if (currentList != null && currentList.MarkerStyle == markerStyle)
-        {
-            ClearListFormatting();
-            return;
-        }
-
-        EditingCommands.ToggleNumbering.Execute(null, EditorBox);
-
-        System.Windows.Documents.List? updatedList = GetAncestorList(selection.Start)
-            ?? GetAncestorList(selection.End);
-
-        if (updatedList != null)
-            updatedList.MarkerStyle = markerStyle;
-    }
-
-    private static void InsertBlockBefore(Block reference, Block newBlock)
-    {
-        if (reference.Parent is FlowDocument document)
-        {
-            document.Blocks.InsertBefore(reference, newBlock);
-        }
-        else if (reference.Parent is Section section)
-        {
-            section.Blocks.InsertBefore(reference, newBlock);
-        }
-        else if (reference.Parent is ListItem listItem)
-        {
-            listItem.Blocks.InsertBefore(reference, newBlock);
-        }
-    }
-
-    private static void RemoveListContainer(System.Windows.Documents.List list)
-    {
-        if (list.Parent is FlowDocument document)
-        {
-            document.Blocks.Remove(list);
-        }
-        else if (list.Parent is Section section)
-        {
-            section.Blocks.Remove(list);
-        }
-        else if (list.Parent is ListItem listItem)
-        {
-            listItem.Blocks.Remove(list);
-        }
+        StripListPrefixes();
     }
 
     private void BoldButton_Click(object sender, RoutedEventArgs e)
@@ -3174,7 +3204,6 @@ public partial class MainWindow : Window
             return;
 
         ToggleBulletedList();
-        MarkDirty();
     }
 
     private void BulletedListMenuItem_Click(object sender, RoutedEventArgs e)
@@ -3188,7 +3217,6 @@ public partial class MainWindow : Window
             return;
 
         ToggleNumberedList();
-        MarkDirty();
     }
 
     private void NumberedListMenuItem_Click(object sender, RoutedEventArgs e)
@@ -3202,7 +3230,6 @@ public partial class MainWindow : Window
             return;
 
         ToggleLetteredList();
-        MarkDirty();
     }
 
     private void LetteredListMenuItem_Click(object sender, RoutedEventArgs e)
@@ -3216,7 +3243,6 @@ public partial class MainWindow : Window
             return;
 
         ClearListFormatting();
-        MarkDirty();
     }
 
     private void ClearListFormattingMenuItem_Click(object sender, RoutedEventArgs e)
@@ -3230,28 +3256,12 @@ public partial class MainWindow : Window
             || _currentDocumentType == DocumentType.OpenDocument;
     }
 
-    private System.Windows.Documents.List? GetAncestorList(TextPointer position)
-    {
-        DependencyObject? current = position.Parent;
-
-        while (current != null && current is not FlowDocument)
-        {
-            if (current is System.Windows.Documents.List list)
-                return list;
-
-            current = LogicalTreeHelper.GetParent(current);
-        }
-
-        return null;
-    }
-
     private bool IsSelectionInList()
     {
         if (EditorBox == null)
             return false;
 
-        return GetAncestorList(EditorBox.Selection.Start) != null
-            || GetAncestorList(EditorBox.Selection.End) != null;
+        return GetSelectedLines().Any(line => ListPrefixRegex.IsMatch(line.Content));
     }
 
     private void UpdateFormattingControls()

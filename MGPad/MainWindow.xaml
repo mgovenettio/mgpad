@@ -133,23 +133,23 @@
                 <ToggleButton x:Name="BoldButton"
                               Content="B"
                               ToolTip="Bold (Ctrl+B)"
-                              Click="BoldButton_Click" />
+                              Command="{x:Static local:MainWindow.ToggleBoldCommand}" />
                 <ToggleButton x:Name="ItalicButton"
                               Content="I"
                               ToolTip="Italic (Ctrl+I)"
-                              Click="ItalicButton_Click" />
+                              Command="{x:Static local:MainWindow.ToggleItalicCommand}" />
                 <ToggleButton x:Name="UnderlineButton"
                               Content="U"
                               ToolTip="Underline (Ctrl+U)"
-                              Click="UnderlineButton_Click" />
+                              Command="{x:Static local:MainWindow.ToggleUnderlineCommand}" />
                 <ToggleButton x:Name="MonospacedButton"
                               Content="Monospace"
                               ToolTip="Monospace (Ctrl+Shift+M)"
-                              Click="MonospacedButton_Click" />
+                              Command="{x:Static local:MainWindow.ToggleMonospacedCommand}" />
                 <ToggleButton x:Name="StrikethroughButton"
                               Content="S"
                               ToolTip="Strikethrough (Ctrl+Shift+X)"
-                              Click="StrikethroughButton_Click" />
+                              Command="{x:Static local:MainWindow.ToggleStrikethroughCommand}" />
                 <Separator />
                 <Button x:Name="NumberedListButton"
                         Content="Numbered List"
@@ -188,7 +188,7 @@
                 <Button x:Name="ToggleLanguageButton"
                         Content="JP/EN"
                         ToolTip="Toggle input language (Ctrl+J)"
-                        Click="ToggleLanguageButton_Click" />
+                        Command="{x:Static local:MainWindow.ToggleInputLanguageCommand}" />
                 <Separator />
                 <Button x:Name="NightModeButton"
                         Content="Night"
@@ -197,7 +197,7 @@
                 <Button x:Name="TimestampButton"
                         Content="TS"
                         ToolTip="Insert timestamp (Alt+Shift+T)"
-                        Click="TimestampButton_Click" />
+                        Command="{x:Static local:MainWindow.InsertTimestampCommand}" />
             </ToolBar>
         </ToolBarTray>
 

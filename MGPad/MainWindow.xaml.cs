@@ -234,6 +234,20 @@ public partial class MainWindow : Window
                 e.Handled = true;
             }));
         CommandBindings.Add(new CommandBinding(
+            ToggleMonospacedCommand,
+            (s, e) =>
+            {
+                if (!CanFormat())
+                {
+                    e.Handled = true;
+                    return;
+                }
+
+                ToggleMonospacedFromUi();
+                e.Handled = true;
+            },
+            (s, e) => e.CanExecute = CanFormat()));
+        CommandBindings.Add(new CommandBinding(
             ToggleInputLanguageCommand,
             (s, e) => ToggleInputLanguage()));
         CommandBindings.Add(new CommandBinding(
@@ -247,14 +261,6 @@ public partial class MainWindow : Window
         {
             EditorBox.SelectionChanged += EditorBox_SelectionChanged;
             EditorBox.PreviewKeyDown += EditorBox_PreviewKeyDown;
-            EditorBox.CommandBindings.Add(new CommandBinding(
-                ToggleMonospacedCommand,
-                (s, e) =>
-                {
-                    ToggleMonospacedFromUi();
-                    e.Handled = true;
-                },
-                (s, e) => e.CanExecute = CanFormat()));
         }
 
         if (_englishInputLanguage == null || _japaneseInputLanguage == null)
@@ -1296,17 +1302,7 @@ public partial class MainWindow : Window
         UpdateLanguageIndicator();
     }
 
-    private void ToggleLanguageButton_Click(object sender, RoutedEventArgs e)
-    {
-        ToggleInputLanguage();
-    }
-
     private void InsertTimestampMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        InsertTimestampAtCaret();
-    }
-
-    private void TimestampButton_Click(object sender, RoutedEventArgs e)
     {
         InsertTimestampAtCaret();
     }
@@ -3534,47 +3530,6 @@ public partial class MainWindow : Window
     private void ClearListFormatting()
     {
         StripListPrefixes();
-    }
-
-    private void BoldButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (!CanFormat())
-            return;
-
-        ToggleBold();
-        MarkDirty();
-    }
-
-    private void ItalicButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (!CanFormat())
-            return;
-
-        ToggleItalic();
-        MarkDirty();
-    }
-
-    private void UnderlineButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (!CanFormat())
-            return;
-
-        ToggleUnderline();
-        MarkDirty();
-    }
-
-    private void StrikethroughButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (!CanFormat())
-            return;
-
-        ToggleStrikethrough();
-        MarkDirty();
-    }
-
-    private void MonospacedButton_Click(object sender, RoutedEventArgs e)
-    {
-        ToggleMonospacedFromUi();
     }
 
     private void BulletedListButton_Click(object sender, RoutedEventArgs e)

@@ -180,6 +180,14 @@
                           SelectionChanged="FontSizeComboBox_SelectionChanged"
                           LostKeyboardFocus="FontSizeComboBox_LostFocus"
                           PreviewKeyDown="FontSizeComboBox_PreviewKeyDown" />
+                <Button x:Name="HighlightButton"
+                        Content="Highlight"
+                        ToolTip="Set highlight color"
+                        Click="HighlightButton_Click" />
+                <Button x:Name="TextColorButton"
+                        Content="Text Color"
+                        ToolTip="Set text color"
+                        Click="TextColorButton_Click" />
                 <Separator />
                 <Button x:Name="AlignLeftButton" Content="L" ToolTip="Align left" Click="AlignLeftButton_Click" />
                 <Button x:Name="AlignCenterButton" Content="C" ToolTip="Align center" Click="AlignCenterButton_Click" />

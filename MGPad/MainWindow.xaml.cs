@@ -21,6 +21,8 @@ using Microsoft.Win32;
 using Markdig;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
+using DrawingColor = System.Drawing.Color;
+using WinForms = System.Windows.Forms;
 
 namespace MGPad;
 
@@ -3377,6 +3379,51 @@ public partial class MainWindow : Window
         }
     }
 
+    private Color? ShowColorPicker(Color? initialColor)
+    {
+        using var dialog = new WinForms.ColorDialog
+        {
+            FullOpen = true
+        };
+
+        if (initialColor.HasValue)
+        {
+            dialog.Color = DrawingColor.FromArgb(
+                initialColor.Value.A,
+                initialColor.Value.R,
+                initialColor.Value.G,
+                initialColor.Value.B);
+        }
+
+        WinForms.DialogResult result = dialog.ShowDialog();
+        if (result != WinForms.DialogResult.OK)
+            return null;
+
+        return Color.FromArgb(dialog.Color.A, dialog.Color.R, dialog.Color.G, dialog.Color.B);
+    }
+
+    private void ApplyForeground(Color color)
+    {
+        if (EditorBox == null)
+            return;
+
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        EditorBox.Selection.ApplyPropertyValue(TextElement.ForegroundProperty, brush);
+        MarkDirty();
+    }
+
+    private void ApplyHighlight(Color color)
+    {
+        if (EditorBox == null)
+            return;
+
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        EditorBox.Selection.ApplyPropertyValue(TextElement.BackgroundProperty, brush);
+        MarkDirty();
+    }
+
     private void ToggleBold()
     {
         if (EditorBox == null || !CanFormat())
@@ -3585,6 +3632,42 @@ public partial class MainWindow : Window
         ClearListFormattingButton_Click(sender, e);
     }
 
+    private void HighlightButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        Color? current = null;
+        if (EditorBox != null)
+        {
+            object property = EditorBox.Selection.GetPropertyValue(TextElement.BackgroundProperty);
+            if (property is SolidColorBrush brush)
+                current = brush.Color;
+        }
+
+        Color? picked = ShowColorPicker(current);
+        if (picked.HasValue)
+            ApplyHighlight(picked.Value);
+    }
+
+    private void TextColorButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        Color? current = null;
+        if (EditorBox != null)
+        {
+            object property = EditorBox.Selection.GetPropertyValue(TextElement.ForegroundProperty);
+            if (property is SolidColorBrush brush)
+                current = brush.Color;
+        }
+
+        Color? picked = ShowColorPicker(current);
+        if (picked.HasValue)
+            ApplyForeground(picked.Value);
+    }
+
     private bool CanFormat()
     {
         return _currentDocumentType == DocumentType.RichText
@@ -3636,6 +3719,10 @@ public partial class MainWindow : Window
             LetteredListButton.IsEnabled = canFormat;
         if (ClearListFormattingButton != null)
             ClearListFormattingButton.IsEnabled = canFormat && IsSelectionInList();
+        if (HighlightButton != null)
+            HighlightButton.IsEnabled = canFormat;
+        if (TextColorButton != null)
+            TextColorButton.IsEnabled = canFormat;
         if (NumberedListMenuItem != null)
             NumberedListMenuItem.IsEnabled = canFormat;
         if (LetteredListMenuItem != null)

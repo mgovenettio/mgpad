@@ -299,7 +299,7 @@ public partial class MainWindow : Window
             HelpText,
             "MGPad Help",
             MessageBoxButton.OK,
-            MessageBoxImage.Information);
+            MessageBoxImage.None);
     }
 
     private void ApplyMarkdownModeLayout()
@@ -898,7 +898,7 @@ public partial class MainWindow : Window
                 "Select one or more numbers to sum.",
                 "Sum selection",
                 MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                MessageBoxImage.None);
             return;
         }
 
@@ -909,7 +909,7 @@ public partial class MainWindow : Window
                 "No numbers were found in the selection.",
                 "Sum selection",
                 MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                MessageBoxImage.None);
             return;
         }
 
@@ -1379,7 +1379,7 @@ public partial class MainWindow : Window
                 "PDF export completed:\n" + pdfPath,
                 "Export as PDF",
                 MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                MessageBoxImage.None);
         }
         catch (Exception ex)
         {
@@ -1387,7 +1387,7 @@ public partial class MainWindow : Window
                 "Failed to export PDF.\n\n" + ex.Message,
                 "Export as PDF",
                 MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                MessageBoxImage.None);
         }
     }
 
@@ -1418,7 +1418,7 @@ public partial class MainWindow : Window
                 "Markdown export completed:\n" + markdownPath,
                 "Export as Markdown",
                 MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                MessageBoxImage.None);
         }
         catch (Exception ex)
         {
@@ -1426,7 +1426,7 @@ public partial class MainWindow : Window
                 "Failed to export Markdown.\n\n" + ex.Message,
                 "Export as Markdown",
                 MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                MessageBoxImage.None);
         }
     }
 
@@ -1455,7 +1455,7 @@ public partial class MainWindow : Window
                 "ODT export completed:\n" + odtPath,
                 "Export as ODT",
                 MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                MessageBoxImage.None);
         }
         catch (Exception ex)
         {
@@ -1463,7 +1463,7 @@ public partial class MainWindow : Window
                 "Failed to export ODT.\n\n" + ex.Message,
                 "Export as ODT",
                 MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                MessageBoxImage.None);
         }
     }
 
@@ -2410,7 +2410,7 @@ public partial class MainWindow : Window
                 $"The file could not be found:\n{path}",
                 "File Not Found",
                 MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                MessageBoxImage.None);
             RemoveRecentDocument(path);
             return false;
         }
@@ -2515,7 +2515,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Failed to load document: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Failed to load document: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.None);
         }
         finally
         {
@@ -2531,7 +2531,7 @@ public partial class MainWindow : Window
                 $"The autosave file could not be found:\n{recoveryItem.AutosavePath}",
                 "Autosave Missing",
                 MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                MessageBoxImage.None);
             return;
         }
 
@@ -2591,7 +2591,7 @@ public partial class MainWindow : Window
                 $"Failed to recover the document: {ex.Message}",
                 "Recovery Error",
                 MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                MessageBoxImage.None);
         }
         finally
         {
@@ -2653,7 +2653,7 @@ public partial class MainWindow : Window
         {
             if (showErrors)
             {
-                MessageBox.Show($"Failed to save document: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Failed to save document: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.None);
             }
             else
             {
@@ -2750,7 +2750,7 @@ public partial class MainWindow : Window
             "You have unsaved changes. Do you want to save them before continuing?",
             "Unsaved Changes",
             MessageBoxButton.YesNoCancel,
-            MessageBoxImage.Warning);
+            MessageBoxImage.None);
 
         return result switch
         {

@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace MGPad;
 
-internal sealed record RecoveryItem(
+public sealed record RecoveryItem(
     string DisplayName,
     string? OriginalPath,
     DateTimeOffset TimestampUtc,
@@ -19,7 +19,7 @@ internal sealed record RecoveryItem(
     public string TimestampLocal => TimestampUtc.ToLocalTime().ToString("g");
 }
 
-internal sealed class RecoveryService
+public sealed class RecoveryService
 {
     private readonly string _autosaveDirectory;
 

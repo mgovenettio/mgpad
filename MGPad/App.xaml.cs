@@ -1,11 +1,13 @@
 using System.Collections.Generic;
-using System.Windows;
+using WpfApplication = System.Windows.Application;
+using WpfStartupEventArgs = System.Windows.StartupEventArgs;
+using WpfWindowStartupLocation = System.Windows.WindowStartupLocation;
 
 namespace MGPad;
 
-public partial class App : Application
+public partial class App : WpfApplication
 {
-    protected override void OnStartup(StartupEventArgs e)
+    protected override void OnStartup(WpfStartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -17,7 +19,7 @@ public partial class App : Application
         {
             var recoveryWindow = new RecoveryWindow(recoverableItems, recoveryService)
             {
-                WindowStartupLocation = WindowStartupLocation.CenterScreen
+                WindowStartupLocation = WpfWindowStartupLocation.CenterScreen
             };
 
             if (recoveryWindow.ShowDialog() == true)

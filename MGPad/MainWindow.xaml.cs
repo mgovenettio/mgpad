@@ -3402,26 +3402,78 @@ public partial class MainWindow : Window
         return Color.FromArgb(dialog.Color.A, dialog.Color.R, dialog.Color.G, dialog.Color.B);
     }
 
-    private void ApplyForeground(Color color)
+    private Brush CloneAndFreezeBrush(Brush brush)
     {
+        if (brush.IsFrozen)
+            return brush;
+
+        Brush clone = brush.Clone();
+        if (clone.CanFreeze)
+            clone.Freeze();
+
+        return clone;
+    }
+
+    private void ApplyBrushToSelection(DependencyProperty property, Brush? brush)
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        object value = brush == null ? DependencyProperty.UnsetValue : CloneAndFreezeBrush(brush);
+        EditorBox.Selection.ApplyPropertyValue(property, value);
+    }
+
+    private void ApplyHighlightBrush(Brush? brush)
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        ApplyBrushToSelection(TextElement.BackgroundProperty, brush);
+        MarkDirty();
+        UpdateFormattingControls();
+    }
+
+    private void ApplyTextColorBrush(Brush? brush)
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        ApplyBrushToSelection(Inline.ForegroundProperty, brush);
+        MarkDirty();
+        UpdateFormattingControls();
+    }
+
+    private void ClearSelectionColors()
+    {
+        if (!CanFormat())
+            return;
+
         if (EditorBox == null)
             return;
 
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        EditorBox.Selection.ApplyPropertyValue(TextElement.ForegroundProperty, brush);
+        EditorBox.BeginChange();
+        try
+        {
+            ApplyBrushToSelection(TextElement.BackgroundProperty, null);
+            ApplyBrushToSelection(Inline.ForegroundProperty, null);
+        }
+        finally
+        {
+            EditorBox.EndChange();
+        }
+
         MarkDirty();
+        UpdateFormattingControls();
+    }
+
+    private void ApplyForeground(Color color)
+    {
+        ApplyTextColorBrush(new SolidColorBrush(color));
     }
 
     private void ApplyHighlight(Color color)
     {
-        if (EditorBox == null)
-            return;
-
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        EditorBox.Selection.ApplyPropertyValue(TextElement.BackgroundProperty, brush);
-        MarkDirty();
+        ApplyHighlightBrush(new SolidColorBrush(color));
     }
 
     private void ToggleBold()
@@ -3650,6 +3702,15 @@ public partial class MainWindow : Window
             ApplyHighlight(picked.Value);
     }
 
+    private void HighlightToolbarColor_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        if (sender is Control control && control.Background is Brush brush)
+            ApplyHighlightBrush(brush);
+    }
+
     private void TextColorButton_Click(object sender, RoutedEventArgs e)
     {
         if (!CanFormat())
@@ -3666,6 +3727,20 @@ public partial class MainWindow : Window
         Color? picked = ShowColorPicker(current);
         if (picked.HasValue)
             ApplyForeground(picked.Value);
+    }
+
+    private void TextColorToolbarColor_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        if (sender is Control control && control.Background is Brush brush)
+            ApplyTextColorBrush(brush);
+    }
+
+    private void ClearToolbarColors_Click(object sender, RoutedEventArgs e)
+    {
+        ClearSelectionColors();
     }
 
     private bool CanFormat()

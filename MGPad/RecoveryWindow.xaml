@@ -37,17 +37,19 @@
         <StackPanel DockPanel.Dock="Bottom"
                     Margin="0 8 0 0"
                     Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Spacing="8">
+                    HorizontalAlignment="Right">
             <Button Content="Recover Selected"
                     x:Name="RecoverButton"
                     Click="RecoverButton_Click"
-                    IsDefault="True" />
+                    IsDefault="True"
+                    Margin="0 0 8 0" />
             <Button Content="Discard Selected"
                     x:Name="DiscardSelectedButton"
-                    Click="DiscardSelectedButton_Click" />
+                    Click="DiscardSelectedButton_Click"
+                    Margin="0 0 8 0" />
             <Button Content="Discard All"
-                    Click="DiscardAllButton_Click" />
+                    Click="DiscardAllButton_Click"
+                    Margin="0 0 8 0" />
             <Button Content="Close"
                     Click="CloseButton_Click" />
         </StackPanel>

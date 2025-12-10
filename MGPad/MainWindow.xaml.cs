@@ -22,6 +22,10 @@ using Markdig;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using DrawingColor = System.Drawing.Color;
+using FontFamily = System.Windows.Media.FontFamily;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using Color = System.Windows.Media.Color;
+using Brush = System.Windows.Media.Brush;
 using WinForms = System.Windows.Forms;
 
 namespace MGPad;

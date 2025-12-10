@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows.Controls;
 using System.Windows.Documents;
+using WpfRichTextBox = System.Windows.Controls.RichTextBox;
 
 namespace MGPad;
 
@@ -13,7 +13,7 @@ internal static class ListFormatter
         public string NormalizedText => Text.TrimEnd('\r', '\n');
     }
 
-    public static void RenumberLists(RichTextBox? editor)
+    public static void RenumberLists(WpfRichTextBox? editor)
     {
         if (editor?.Document is null)
             return;
@@ -138,7 +138,7 @@ internal static class ListFormatter
         return ((char)(letterBase + clamped)).ToString();
     }
 
-    private static (int lineIndex, int columnOffset) CapturePosition(RichTextBox editor, TextPointer position)
+    private static (int lineIndex, int columnOffset) CapturePosition(WpfRichTextBox editor, TextPointer position)
     {
         TextPointer lineStart = position.GetLineStartPosition(0) ?? position;
 
@@ -158,7 +158,7 @@ internal static class ListFormatter
         return (lineIndex, Math.Max(0, columnOffset));
     }
 
-    private static TextPointer RestorePosition(RichTextBox editor, int lineIndex, int columnOffset)
+    private static TextPointer RestorePosition(WpfRichTextBox editor, int lineIndex, int columnOffset)
     {
         TextPointer contentStart = editor.Document.ContentStart;
         TextPointer? lineStart = contentStart.GetLineStartPosition(lineIndex, out int linesMoved);
@@ -191,7 +191,7 @@ internal static class ListFormatter
         (int lineIndex, int columnOffset) Caret,
         bool IsEmpty);
 
-    private static SelectionSnapshot CaptureSelection(RichTextBox editor)
+    private static SelectionSnapshot CaptureSelection(WpfRichTextBox editor)
     {
         TextSelection selection = editor.Selection;
 
@@ -202,7 +202,7 @@ internal static class ListFormatter
             selection.IsEmpty);
     }
 
-    private static void RestoreSelection(RichTextBox editor, SelectionSnapshot snapshot)
+    private static void RestoreSelection(WpfRichTextBox editor, SelectionSnapshot snapshot)
     {
         TextPointer start = RestorePosition(editor, snapshot.Start.lineIndex, snapshot.Start.columnOffset);
         TextPointer end = RestorePosition(editor, snapshot.End.lineIndex, snapshot.End.columnOffset);

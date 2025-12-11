@@ -17,7 +17,6 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using System.Xml.Linq;
-using Microsoft.Win32;
 using Markdig;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
@@ -26,7 +25,6 @@ using FontFamily = System.Windows.Media.FontFamily;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using Color = System.Windows.Media.Color;
 using Brush = System.Windows.Media.Brush;
-using WinForms = System.Windows.Forms;
 
 namespace MGPad;
 
@@ -301,7 +299,7 @@ public partial class MainWindow : Window
 
     private void HelpMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show(
+        System.Windows.MessageBox.Show(
             HelpText,
             "MGPad Help",
             MessageBoxButton.OK,
@@ -384,14 +382,14 @@ public partial class MainWindow : Window
     {
         Brush windowBackground = _isNightMode
             ? new SolidColorBrush(Color.FromRgb(30, 30, 30))
-            : Brushes.White;
+            : System.Windows.Media.Brushes.White;
         Brush panelBackground = _isNightMode
             ? new SolidColorBrush(Color.FromRgb(45, 45, 48))
-            : Brushes.WhiteSmoke;
+            : System.Windows.Media.Brushes.WhiteSmoke;
         Brush borderBrush = _isNightMode
             ? new SolidColorBrush(Color.FromRgb(62, 62, 66))
-            : Brushes.LightGray;
-        Brush foreground = _isNightMode ? Brushes.WhiteSmoke : Brushes.Black;
+            : System.Windows.Media.Brushes.LightGray;
+        Brush foreground = _isNightMode ? System.Windows.Media.Brushes.WhiteSmoke : System.Windows.Media.Brushes.Black;
 
         if (RootGrid != null)
             RootGrid.Background = windowBackground;
@@ -530,7 +528,7 @@ public partial class MainWindow : Window
         var range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
-        range.Load(stream, DataFormats.Rtf);
+        range.Load(stream, System.Windows.DataFormats.Rtf);
         ApplyTheme();
     }
 
@@ -614,7 +612,7 @@ public partial class MainWindow : Window
                 if (run.IsBold)
                     wpfRun.FontWeight = FontWeights.Bold;
                 if (run.IsItalic)
-                    wpfRun.FontStyle = FontStyles.Italic;
+                    wpfRun.FontStyle = System.Windows.FontStyles.Italic;
                 if (run.IsUnderline)
                     wpfRun.TextDecorations = TextDecorations.Underline;
                 if (run.IsStrikethrough)
@@ -900,7 +898,7 @@ public partial class MainWindow : Window
         string selectedText = EditorBox.Selection.Text;
         if (string.IsNullOrWhiteSpace(selectedText))
         {
-            MessageBox.Show(
+            System.Windows.MessageBox.Show(
                 "Select one or more numbers to sum.",
                 "Sum selection",
                 MessageBoxButton.OK,
@@ -911,7 +909,7 @@ public partial class MainWindow : Window
         var numbers = ExtractNumbersFromSelection(selectedText);
         if (numbers.Count == 0)
         {
-            MessageBox.Show(
+            System.Windows.MessageBox.Show(
                 "No numbers were found in the selection.",
                 "Sum selection",
                 MessageBoxButton.OK,
@@ -1381,7 +1379,7 @@ public partial class MainWindow : Window
             string pdfPath = dialog.FileName;
             ExportDocumentToPdf(pdfPath);
 
-            MessageBox.Show(this,
+            System.Windows.MessageBox.Show(this,
                 "PDF export completed:\n" + pdfPath,
                 "Export as PDF",
                 MessageBoxButton.OK,
@@ -1389,7 +1387,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this,
+            System.Windows.MessageBox.Show(this,
                 "Failed to export PDF.\n\n" + ex.Message,
                 "Export as PDF",
                 MessageBoxButton.OK,
@@ -1420,7 +1418,7 @@ public partial class MainWindow : Window
             if (!TryWriteDocument(markdownPath, DocumentType.Markdown, showErrors: true, applyMarkdownMode: false))
                 return;
 
-            MessageBox.Show(this,
+            System.Windows.MessageBox.Show(this,
                 "Markdown export completed:\n" + markdownPath,
                 "Export as Markdown",
                 MessageBoxButton.OK,
@@ -1428,7 +1426,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this,
+            System.Windows.MessageBox.Show(this,
                 "Failed to export Markdown.\n\n" + ex.Message,
                 "Export as Markdown",
                 MessageBoxButton.OK,
@@ -1457,7 +1455,7 @@ public partial class MainWindow : Window
             string odtPath = dialog.FileName;
             ExportDocumentToOdt(odtPath);
 
-            MessageBox.Show(this,
+            System.Windows.MessageBox.Show(this,
                 "ODT export completed:\n" + odtPath,
                 "Export as ODT",
                 MessageBoxButton.OK,
@@ -1465,7 +1463,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this,
+            System.Windows.MessageBox.Show(this,
                 "Failed to export ODT.\n\n" + ex.Message,
                 "Export as ODT",
                 MessageBoxButton.OK,
@@ -1544,7 +1542,7 @@ public partial class MainWindow : Window
                     continue;
 
                 bool isBold = run.FontWeight == FontWeights.Bold;
-                bool isItalic = run.FontStyle == FontStyles.Italic;
+                bool isItalic = run.FontStyle == System.Windows.FontStyles.Italic;
                 bool isUnderline = run.TextDecorations?.Contains(TextDecorations.Underline[0]) == true;
                 bool isStrikethrough = run.TextDecorations?.Contains(TextDecorations.Strikethrough[0]) == true;
                 bool isMonospaced = IsMonospacedFont(run.FontFamily);
@@ -2412,7 +2410,7 @@ public partial class MainWindow : Window
 
         if (!File.Exists(path))
         {
-            MessageBox.Show(this,
+            System.Windows.MessageBox.Show(this,
                 $"The file could not be found:\n{path}",
                 "File Not Found",
                 MessageBoxButton.OK,
@@ -2432,7 +2430,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var dialog = new OpenFileDialog
+        var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Filter = "Text Documents (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|Markdown Files (*.md)|*.md|OpenDocument Text (*.odt)|*.odt|All files (*.*)|*.*"
         };
@@ -2521,7 +2519,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Failed to load document: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.None);
+            System.Windows.MessageBox.Show($"Failed to load document: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.None);
         }
         finally
         {
@@ -2533,7 +2531,7 @@ public partial class MainWindow : Window
     {
         if (!File.Exists(recoveryItem.AutosavePath))
         {
-            MessageBox.Show(
+            System.Windows.MessageBox.Show(
                 $"The autosave file could not be found:\n{recoveryItem.AutosavePath}",
                 "Autosave Missing",
                 MessageBoxButton.OK,
@@ -2593,7 +2591,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(
+            System.Windows.MessageBox.Show(
                 $"Failed to recover the document: {ex.Message}",
                 "Recovery Error",
                 MessageBoxButton.OK,
@@ -2615,7 +2613,7 @@ public partial class MainWindow : Window
                 {
                     var range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
                     using var stream = new FileStream(path, FileMode.Create, FileAccess.Write);
-                    range.Save(stream, DataFormats.Rtf);
+                    range.Save(stream, System.Windows.DataFormats.Rtf);
                 }
 
                 if (applyMarkdownMode)
@@ -2659,7 +2657,7 @@ public partial class MainWindow : Window
         {
             if (showErrors)
             {
-                MessageBox.Show($"Failed to save document: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.None);
+                System.Windows.MessageBox.Show($"Failed to save document: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.None);
             }
             else
             {
@@ -2718,7 +2716,7 @@ public partial class MainWindow : Window
             ? DocumentType.Markdown
             : (_isMarkdownMode ? DocumentType.Markdown : _currentDocumentType);
 
-        var dialog = new SaveFileDialog
+        var dialog = new Microsoft.Win32.SaveFileDialog
         {
             Filter = "Text Documents (*.txt)|*.txt|Rich Text Format (*.rtf)|*.rtf|Markdown Files (*.md)|*.md|OpenDocument Text (*.odt)|*.odt|All files (*.*)|*.*",
             AddExtension = true,
@@ -2752,7 +2750,7 @@ public partial class MainWindow : Window
             return true;
         }
 
-        var result = MessageBox.Show(
+        var result = System.Windows.MessageBox.Show(
             "You have unsaved changes. Do you want to save them before continuing?",
             "Unsaved Changes",
             MessageBoxButton.YesNoCancel,
@@ -3385,7 +3383,7 @@ public partial class MainWindow : Window
 
     private Color? ShowColorPicker(Color? initialColor)
     {
-        using var dialog = new WinForms.ColorDialog
+        using var dialog = new System.Windows.Forms.ColorDialog
         {
             FullOpen = true
         };
@@ -3399,8 +3397,8 @@ public partial class MainWindow : Window
                 initialColor.Value.B);
         }
 
-        WinForms.DialogResult result = dialog.ShowDialog();
-        if (result != WinForms.DialogResult.OK)
+        System.Windows.Forms.DialogResult result = dialog.ShowDialog();
+        if (result != System.Windows.Forms.DialogResult.OK)
             return null;
 
         return Color.FromArgb(dialog.Color.A, dialog.Color.R, dialog.Color.G, dialog.Color.B);
@@ -3604,13 +3602,13 @@ public partial class MainWindow : Window
         TextSelection selection = EditorBox.Selection;
         object currentStyle = selection.GetPropertyValue(Inline.FontStyleProperty);
 
-        if (currentStyle != DependencyProperty.UnsetValue && currentStyle.Equals(FontStyles.Italic))
+        if (currentStyle != DependencyProperty.UnsetValue && currentStyle.Equals(System.Windows.FontStyles.Italic))
         {
-            selection.ApplyPropertyValue(Inline.FontStyleProperty, FontStyles.Normal);
+            selection.ApplyPropertyValue(Inline.FontStyleProperty, System.Windows.FontStyles.Normal);
         }
         else
         {
-            selection.ApplyPropertyValue(Inline.FontStyleProperty, FontStyles.Italic);
+            selection.ApplyPropertyValue(Inline.FontStyleProperty, System.Windows.FontStyles.Italic);
         }
 
         UpdateFormattingControls();
@@ -3711,7 +3709,7 @@ public partial class MainWindow : Window
         if (!CanFormat())
             return;
 
-        if (sender is Control control && control.Background is Brush brush)
+        if (sender is System.Windows.Controls.Control control && control.Background is Brush brush)
             ApplyHighlightBrush(brush);
     }
 
@@ -3738,7 +3736,7 @@ public partial class MainWindow : Window
         if (!CanFormat())
             return;
 
-        if (sender is Control control && control.Background is Brush brush)
+        if (sender is System.Windows.Controls.Control control && control.Background is Brush brush)
             ApplyTextColorBrush(brush);
     }
 
@@ -3835,7 +3833,7 @@ public partial class MainWindow : Window
             return false;
 
         object style = EditorBox.Selection.GetPropertyValue(Inline.FontStyleProperty);
-        return style is FontStyle fontStyle && fontStyle == FontStyles.Italic;
+        return style is System.Windows.FontStyle fontStyle && fontStyle == System.Windows.FontStyles.Italic;
     }
 
     private bool IsSelectionUnderlined()

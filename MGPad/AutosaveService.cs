@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Threading;
 
 namespace MGPad;
@@ -83,7 +82,7 @@ internal sealed class AutosaveService
                 try
                 {
                     bool saved = false;
-                    Application.Current?.Dispatcher.Invoke(() =>
+                    System.Windows.Application.Current?.Dispatcher.Invoke(() =>
                     {
                         saved = _writeCallback(autosavePath, context.DocumentType);
                     });

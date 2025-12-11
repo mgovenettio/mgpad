@@ -1722,13 +1722,13 @@ public partial class MainWindow : Window
 
         foreach (var span in line)
         {
-            double spanHeight = span.Font.GetHeight(gfx);
+            double spanHeight = span.Font.GetHeight();
             maxHeight = Math.Max(maxHeight, spanHeight);
         }
 
         double baseHeight = maxHeight > 0
             ? maxHeight
-            : fallbackFont.GetHeight(gfx);
+            : fallbackFont.GetHeight();
 
         return baseHeight * lineSpacingFactor;
     }

@@ -2993,8 +2993,7 @@ public partial class MainWindow : Window
 
         ListItem newItem = new(newParagraph);
         List parentList = (List)currentItem.Parent;
-        int index = parentList.ListItems.IndexOf(currentItem);
-        parentList.ListItems.Insert(index + 1, newItem);
+        parentList.ListItems.InsertAfter(currentItem, newItem);
         EditorBox.CaretPosition = newParagraph.ContentStart;
         MarkDirty();
         return true;
@@ -3011,8 +3010,9 @@ public partial class MainWindow : Window
         if (outerBlocks == null)
             return false;
 
-        int indexInList = parentList.ListItems.IndexOf(currentItem);
-        int totalItems = parentList.ListItems.Count;
+        List<ListItem> items = parentList.ListItems.Cast<ListItem>().ToList();
+        int indexInList = items.IndexOf(currentItem);
+        int totalItems = items.Count;
 
         Paragraph replacementParagraph = new();
 
@@ -3040,10 +3040,9 @@ public partial class MainWindow : Window
 
             parentList.ListItems.Remove(currentItem);
 
-            while (parentList.ListItems.Count > indexInList)
+            foreach (ListItem movedItem in items.Skip(indexInList + 1))
             {
-                ListItem movedItem = parentList.ListItems[indexInList];
-                parentList.ListItems.RemoveAt(indexInList);
+                parentList.ListItems.Remove(movedItem);
                 tailList.ListItems.Add(movedItem);
             }
 
@@ -3066,7 +3065,8 @@ public partial class MainWindow : Window
             return false;
 
         List parentList = (List)currentItem.Parent;
-        int index = parentList.ListItems.IndexOf(currentItem);
+        List<ListItem> items = parentList.ListItems.Cast<ListItem>().ToList();
+        int index = items.IndexOf(currentItem);
 
         if (isShift)
         {
@@ -3077,8 +3077,7 @@ public partial class MainWindow : Window
                 return false;
 
             parentList.ListItems.Remove(currentItem);
-            int parentIndex = outerList.ListItems.IndexOf(parentListItem);
-            outerList.ListItems.Insert(parentIndex + 1, currentItem);
+            outerList.ListItems.InsertAfter(parentListItem, currentItem);
 
             if (parentList.ListItems.Count == 0)
                 parentListItem.Blocks.Remove(parentList);
@@ -3091,7 +3090,7 @@ public partial class MainWindow : Window
         if (index <= 0)
             return false;
 
-        ListItem previousItem = parentList.ListItems[index - 1];
+        ListItem previousItem = items[index - 1];
         List? nestedList = previousItem.Blocks.OfType<List>().LastOrDefault();
 
         if (nestedList == null)
@@ -3139,8 +3138,9 @@ public partial class MainWindow : Window
         string itemText = new TextRange(currentItem.ContentStart, currentItem.ContentEnd).Text;
         Paragraph paragraph = new(new Run(itemText));
 
-        int indexInList = parentList.ListItems.IndexOf(currentItem);
-        int totalItems = parentList.ListItems.Count;
+        List<ListItem> items = parentList.ListItems.Cast<ListItem>().ToList();
+        int indexInList = items.IndexOf(currentItem);
+        int totalItems = items.Count;
 
         if (totalItems == 1)
         {
@@ -3166,10 +3166,9 @@ public partial class MainWindow : Window
 
             parentList.ListItems.Remove(currentItem);
 
-            while (parentList.ListItems.Count > indexInList)
+            foreach (ListItem movedItem in items.Skip(indexInList + 1))
             {
-                ListItem movedItem = parentList.ListItems[indexInList];
-                parentList.ListItems.RemoveAt(indexInList);
+                parentList.ListItems.Remove(movedItem);
                 tailList.ListItems.Add(movedItem);
             }
 

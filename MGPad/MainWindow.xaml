@@ -220,6 +220,7 @@
                              Grid.Column="0"
                              VerticalScrollBarVisibility="Auto"
                              AcceptsTab="True"
+                             PreviewKeyDown="EditorBox_PreviewKeyDown"
                              TextChanged="EditorBox_TextChanged">
                     <RichTextBox.InputBindings>
                         <KeyBinding Command="{x:Static local:MainWindow.ToggleMonospacedCommand}"

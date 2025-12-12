@@ -88,7 +88,6 @@ public partial class MainWindow : Window
     private CultureInfo? _englishInputLanguage;
     private CultureInfo? _japaneseInputLanguage;
     private bool _isUpdatingFontControls;
-    private bool _isRenumberingLists;
     private readonly double[] _defaultFontSizes = new double[]
         { 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72 };
     private static readonly Regex NumberRegex = new(
@@ -2771,16 +2770,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_isRenumberingLists)
-        {
-            return;
-        }
-
-        // Renumber inline list prefixes after edits. The helper tracks the caret's line/column so
-        // replacements keep the caret near the user's previous location instead of jumping to the
-        // document start.
-        RenumberListsSafely();
-
         MarkDirty();
         ScheduleMarkdownPreviewUpdate();
     }
@@ -2790,50 +2779,39 @@ public partial class MainWindow : Window
         if (EditorBox == null)
             return;
 
-        if (e.Key == Key.Enter && TryHandleEnterWithListPrefix())
+        bool isShiftTab = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+
+        if (e.Key == Key.Space)
         {
-            e.Handled = true;
+            if (TryConvertCurrentParagraphToList())
+                e.Handled = true;
             return;
         }
 
-        if (!CanFormat())
-            return;
-
-        if (e.Key == Key.Tab &&
-            GetCurrentLineTextAndOffsets(out string lineText, out TextPointer lineStart, out TextPointer lineEnd) &&
-            IsListLine(lineText))
+        if (e.Key == Key.Enter)
         {
-            int currentIndentLevel = GetIndentLevel(lineText);
-            bool isShiftTab = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
-
-            // Shift+Tab on a top-level list item keeps the indent level at zero so the marker stays
-            // aligned instead of moving the line into negative indentation.
-            int targetIndentLevel = isShiftTab
-                ? Math.Max(0, currentIndentLevel - 1)
-                : currentIndentLevel + 1;
-
-            if (!ListParser.TryMatchListPrefix(lineText, out Match match))
+            if (HandleEnterInList())
+            {
+                e.Handled = true;
                 return;
+            }
 
-            string originalIndentation = match.Groups["indent"].Value;
-            string updatedLine = SetIndentLevel(lineText, targetIndentLevel);
+            if (TryConvertCurrentParagraphToList())
+                e.Handled = true;
+            return;
+        }
 
-            int caretOffset = lineStart.GetOffsetToPosition(EditorBox.CaretPosition);
+        if (e.Key == Key.Tab)
+        {
+            if (HandleTabInList(isShiftTab))
+                e.Handled = true;
+            return;
+        }
 
-            ReplaceLineText(lineStart, lineEnd, updatedLine);
-
-            int newIndentLength = targetIndentLevel * ListParser.IndentSpacesPerLevel;
-            int updatedCaretOffset = Math.Max(0, caretOffset + (newIndentLength - originalIndentation.Length));
-            int maxOffset = Math.Max(0, updatedLine.Length - 1);
-
-            TextPointer? updatedCaret = lineStart.GetPositionAtOffset(Math.Min(updatedCaretOffset, maxOffset));
-
-            if (updatedCaret != null)
-                EditorBox.CaretPosition = updatedCaret;
-
-            RenumberListsSafely();
-            e.Handled = true;
-            MarkDirty();
+        if (e.Key == Key.Back)
+        {
+            if (HandleBackspaceAtListStart())
+                e.Handled = true;
         }
     }
 
@@ -2908,248 +2886,408 @@ public partial class MainWindow : Window
         return text[..index];
     }
 
-    private static bool IsListLine(string text)
+    private Paragraph? GetCurrentParagraph(TextPointer caret)
     {
-        return ListParser.IsListLine(text);
+        return caret.Paragraph;
     }
 
-    private static int GetIndentLevel(string text)
+    private ListItem? GetParentListItem(TextPointer caret)
     {
-        return ListParser.GetIndentLevel(text);
-    }
+        TextElement? element = caret.Parent as TextElement;
 
-    private static string SetIndentLevel(string text, int indentLevel)
-    {
-        return ListParser.SetIndentLevel(text, indentLevel);
-    }
-
-    private void ApplyNumberedListPrefixes()
-    {
-        ApplyListPrefixes(index => $"{index + 1}. ", renumberAfterChange: true);
-    }
-
-    private void ApplyLetteredListPrefixes()
-    {
-        ApplyListPrefixes(index =>
+        while (element != null)
         {
-            int clamped = Math.Min(index, 'z' - 'a');
-            char marker = (char)('a' + clamped);
-            return $"{marker}. ";
-        }, renumberAfterChange: true);
-    }
+            if (element is ListItem listItem)
+                return listItem;
 
-    private void ApplyBulletedListPrefixes()
-    {
-        ApplyListPrefixes(_ => "* ");
-    }
-
-    private void ApplyListPrefixes(Func<int, string> prefixBuilder, bool renumberAfterChange = false)
-    {
-        if (EditorBox == null || !CanFormat())
-            return;
-
-        List<SelectionLine> lines = GetSelectedLines().ToList();
-
-        bool madeChanges = false;
-
-        for (int i = 0; i < lines.Count; i++)
-        {
-            string content = lines[i].Content;
-
-            if (string.IsNullOrWhiteSpace(content) || ListParser.IsListLine(content))
-                continue;
-
-            string indentation = GetLineIndentation(content);
-            string remainder = content[indentation.Length..];
-            string newText = indentation + prefixBuilder(i) + remainder + lines[i].LineBreak;
-
-            new TextRange(lines[i].Start, lines[i].End).Text = newText;
-            madeChanges = true;
+            element = element.Parent as TextElement;
         }
 
-        if (renumberAfterChange && madeChanges)
-            RenumberListsSafely();
-
-        if (!madeChanges)
-            return;
-
-        MarkDirty();
+        return null;
     }
 
-    private void RenumberListsSafely()
+    private static BlockCollection? GetParentBlockCollection(TextElement element)
     {
-        if (EditorBox == null)
-            return;
-
-        if (_isRenumberingLists)
-            return;
-
-        try
+        return element switch
         {
-            _isRenumberingLists = true;
-            ListFormatter.RenumberLists(EditorBox);
-        }
-        finally
-        {
-            _isRenumberingLists = false;
-        }
-    }
-
-    private void StripListPrefixes()
-    {
-        if (EditorBox == null || !CanFormat())
-            return;
-
-        foreach (SelectionLine line in GetSelectedLines().ToList())
-        {
-            string content = line.Content;
-            if (!ListParser.TryMatchListPrefix(content, out Match match))
-                continue;
-
-            string indentation = match.Groups["indent"].Value;
-            string updatedContent = indentation + content[match.Length..] + line.LineBreak;
-            new TextRange(line.Start, line.End).Text = updatedContent;
-        }
-
-        MarkDirty();
-    }
-
-    private void InsertNewLineWithPrefix(string prefix)
-    {
-        if (EditorBox == null)
-            return;
-
-        TextPointer insertionPoint = EditorBox.CaretPosition;
-        string insertionText = Environment.NewLine + prefix;
-
-        new TextRange(insertionPoint, insertionPoint).Text = insertionText;
-
-        TextPointer? newCaretPosition = insertionPoint.GetPositionAtOffset(
-            insertionText.Length,
-            LogicalDirection.Forward);
-
-        if (newCaretPosition != null)
-            EditorBox.CaretPosition = newCaretPosition;
-    }
-
-    private sealed class ListLevelState
-    {
-        public ListLineType Type { get; init; }
-        public string BulletSymbol { get; init; } = string.Empty;
-        public bool UseUppercaseLetters { get; init; }
-        public int ItemCount { get; set; }
-    }
-
-    private static ListLevelState CreateLevelState(ParsedListLine parsedLine)
-    {
-        return new ListLevelState
-        {
-            Type = parsedLine.Type,
-            BulletSymbol = parsedLine.Type == ListLineType.Bullet ? parsedLine.Marker : string.Empty,
-            UseUppercaseLetters = parsedLine.Type == ListLineType.Lettered && parsedLine.IsUppercaseLetter,
-            ItemCount = 0
+            FlowDocument document => document.Blocks,
+            Section section => section.Blocks,
+            ListItem listItem => listItem.Blocks,
+            _ => null
         };
     }
 
-    private static void UpdateListLevelStates(List<ListLevelState> states, ParsedListLine parsedLine)
-    {
-        while (states.Count > parsedLine.IndentLevel + 1)
-            states.RemoveAt(states.Count - 1);
-
-        while (states.Count <= parsedLine.IndentLevel)
-            states.Add(CreateLevelState(parsedLine));
-
-        ListLevelState levelState = states[parsedLine.IndentLevel];
-
-        if (levelState.Type != parsedLine.Type ||
-            (parsedLine.Type == ListLineType.Bullet && levelState.BulletSymbol != parsedLine.Marker) ||
-            (parsedLine.Type == ListLineType.Lettered && levelState.UseUppercaseLetters != parsedLine.IsUppercaseLetter))
-        {
-            states[parsedLine.IndentLevel] = CreateLevelState(parsedLine);
-        }
-
-        states[parsedLine.IndentLevel].ItemCount++;
-    }
-
-    private List<ListLevelState> BuildListLevelStates(TextPointer currentLineStart)
-    {
-        List<ListLevelState> states = new();
-
-        if (EditorBox?.Document == null)
-            return states;
-
-        TextPointer? lineStart = EditorBox.Document.ContentStart.GetLineStartPosition(0);
-
-        while (lineStart != null)
-        {
-            TextPointer? nextLineStart = lineStart.GetLineStartPosition(1);
-            TextPointer lineEnd = nextLineStart ?? EditorBox.Document.ContentEnd;
-
-            string lineText = new TextRange(lineStart, lineEnd).Text;
-
-            if (ListParser.TryParseListLine(lineText, out ParsedListLine parsedLine))
-                UpdateListLevelStates(states, parsedLine);
-
-            if (lineStart.CompareTo(currentLineStart) == 0)
-                break;
-
-            lineStart = nextLineStart;
-        }
-
-        return states;
-    }
-
-    private static string GetNextListMarker(List<ListLevelState> states, ParsedListLine currentLine)
-    {
-        if (states.Count <= currentLine.IndentLevel)
-            return string.Empty;
-
-        ListLevelState state = states[currentLine.IndentLevel];
-
-        return state.Type switch
-        {
-            ListLineType.Numbered => (state.ItemCount + 1).ToString(),
-            ListLineType.Lettered => ListParser.BuildLetterMarker(state.ItemCount + 1, state.UseUppercaseLetters),
-            ListLineType.Bullet => state.BulletSymbol,
-            _ => string.Empty
-        };
-    }
-
-    private bool TryHandleEnterWithListPrefix()
+    private bool TryConvertCurrentParagraphToList()
     {
         if (EditorBox == null)
             return false;
 
-        if (!GetCurrentLineTextAndOffsets(out string lineText, out TextPointer lineStart, out TextPointer lineEnd))
+        TextPointer caret = EditorBox.CaretPosition;
+        Paragraph? paragraph = GetCurrentParagraph(caret);
+
+        if (paragraph == null)
             return false;
 
-        if (!ListParser.TryParseListLine(lineText, out ParsedListLine parsedLine))
+        string prefixText = new TextRange(paragraph.ContentStart, caret).Text;
+        Match match = Regex.Match(prefixText, "^(?<marker>(?<num>\\d+)([.)])|(?<letter>[A-Za-z])([.)])|(?<bullet>[\\*-]))\\s*$");
+
+        if (!match.Success)
             return false;
 
-        if (string.IsNullOrWhiteSpace(parsedLine.Content))
+        TextMarkerStyle markerStyle = match.Groups["num"].Success
+            ? TextMarkerStyle.Decimal
+            : (match.Groups["letter"].Success ? TextMarkerStyle.LowerLatin : TextMarkerStyle.Disc);
+
+        TextPointer? markerEnd = paragraph.ContentStart.GetPositionAtOffset(prefixText.Length);
+
+        if (markerEnd == null)
+            return false;
+
+        new TextRange(paragraph.ContentStart, markerEnd).Text = string.Empty;
+
+        List list = new()
         {
-            string lineBreak = string.IsNullOrEmpty(parsedLine.LineBreak)
-                ? Environment.NewLine
-                : parsedLine.LineBreak;
+            MarkerStyle = markerStyle
+        };
 
-            ReplaceLineText(lineStart, lineEnd, lineBreak);
+        BlockCollection? parentBlocks = GetParentBlockCollection(paragraph.Parent as TextElement ?? paragraph.Parent as FlowDocument);
+        if (parentBlocks == null)
+            parentBlocks = (paragraph.Parent as FlowDocument)?.Blocks;
 
-            TextPointer? caret = lineStart.GetPositionAtOffset(lineBreak.Length);
-            if (caret != null)
-                EditorBox.CaretPosition = caret;
+        if (parentBlocks == null)
+            return false;
 
+        parentBlocks.InsertBefore(paragraph, list);
+        parentBlocks.Remove(paragraph);
+        ListItem listItem = new(paragraph);
+        list.ListItems.Add(listItem);
+
+        EditorBox.CaretPosition = listItem.ContentStart;
+        MarkDirty();
+        return true;
+    }
+
+    private bool HandleEnterInList()
+    {
+        if (EditorBox == null)
+            return false;
+
+        ListItem? currentItem = GetParentListItem(EditorBox.CaretPosition);
+        if (currentItem == null)
+            return false;
+
+        string itemText = new TextRange(currentItem.ContentStart, currentItem.ContentEnd).Text;
+
+        if (string.IsNullOrWhiteSpace(itemText))
+        {
+            return ExitListFromItem(currentItem);
+        }
+
+        Paragraph newParagraph = new();
+        string trailingText = new TextRange(EditorBox.CaretPosition, currentItem.ContentEnd).Text;
+        if (!string.IsNullOrEmpty(trailingText))
+        {
+            newParagraph.Inlines.Add(new Run(trailingText));
+            new TextRange(EditorBox.CaretPosition, currentItem.ContentEnd).Text = string.Empty;
+        }
+
+        ListItem newItem = new(newParagraph);
+        List parentList = (List)currentItem.Parent;
+        int index = parentList.ListItems.IndexOf(currentItem);
+        parentList.ListItems.Insert(index + 1, newItem);
+        EditorBox.CaretPosition = newParagraph.ContentStart;
+        MarkDirty();
+        return true;
+    }
+
+    private bool ExitListFromItem(ListItem currentItem)
+    {
+        List parentList = (List)currentItem.Parent;
+        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent as TextElement ?? parentList.Parent as FlowDocument);
+
+        if (outerBlocks == null)
+            outerBlocks = (parentList.Parent as FlowDocument)?.Blocks;
+
+        if (outerBlocks == null)
+            return false;
+
+        int indexInList = parentList.ListItems.IndexOf(currentItem);
+        int totalItems = parentList.ListItems.Count;
+
+        Paragraph replacementParagraph = new();
+
+        if (totalItems == 1)
+        {
+            outerBlocks.InsertAfter(parentList, replacementParagraph);
+            outerBlocks.Remove(parentList);
+        }
+        else if (indexInList == 0)
+        {
+            parentList.ListItems.Remove(currentItem);
+            outerBlocks.InsertBefore(parentList, replacementParagraph);
+        }
+        else if (indexInList == totalItems - 1)
+        {
+            parentList.ListItems.Remove(currentItem);
+            outerBlocks.InsertAfter(parentList, replacementParagraph);
+        }
+        else
+        {
+            List tailList = new()
+            {
+                MarkerStyle = parentList.MarkerStyle
+            };
+
+            parentList.ListItems.Remove(currentItem);
+
+            while (parentList.ListItems.Count > indexInList)
+            {
+                ListItem movedItem = parentList.ListItems[indexInList];
+                parentList.ListItems.RemoveAt(indexInList);
+                tailList.ListItems.Add(movedItem);
+            }
+
+            outerBlocks.InsertAfter(parentList, replacementParagraph);
+            outerBlocks.InsertAfter(replacementParagraph, tailList);
+        }
+
+        EditorBox.CaretPosition = replacementParagraph.ContentStart;
+        MarkDirty();
+        return true;
+    }
+
+    private bool HandleTabInList(bool isShift)
+    {
+        if (EditorBox == null)
+            return false;
+
+        ListItem? currentItem = GetParentListItem(EditorBox.CaretPosition);
+        if (currentItem == null)
+            return false;
+
+        List parentList = (List)currentItem.Parent;
+        int index = parentList.ListItems.IndexOf(currentItem);
+
+        if (isShift)
+        {
+            ListItem? parentListItem = parentList.Parent as ListItem;
+            List? outerList = parentListItem?.Parent as List;
+
+            if (outerList == null || parentListItem == null)
+                return false;
+
+            parentList.ListItems.Remove(currentItem);
+            int parentIndex = outerList.ListItems.IndexOf(parentListItem);
+            outerList.ListItems.Insert(parentIndex + 1, currentItem);
+
+            if (parentList.ListItems.Count == 0)
+                parentListItem.Blocks.Remove(parentList);
+
+            EditorBox.CaretPosition = currentItem.ContentStart;
             MarkDirty();
             return true;
         }
 
-        List<ListLevelState> levelStates = BuildListLevelStates(lineStart);
-        string nextMarker = GetNextListMarker(levelStates, parsedLine);
+        if (index <= 0)
+            return false;
 
-        string prefix = ListParser.BuildPrefix(parsedLine.IndentText, nextMarker, parsedLine.Punctuation, parsedLine.Spacing);
+        ListItem previousItem = parentList.ListItems[index - 1];
+        List? nestedList = previousItem.Blocks.OfType<List>().LastOrDefault();
 
-        InsertNewLineWithPrefix(prefix);
+        if (nestedList == null)
+        {
+            nestedList = new List
+            {
+                MarkerStyle = parentList.MarkerStyle
+            };
+            previousItem.Blocks.Add(nestedList);
+        }
+
+        parentList.ListItems.Remove(currentItem);
+        nestedList.ListItems.Add(currentItem);
+        EditorBox.CaretPosition = currentItem.ContentStart;
         MarkDirty();
         return true;
+    }
+
+    private bool HandleBackspaceAtListStart()
+    {
+        if (EditorBox == null)
+            return false;
+
+        ListItem? currentItem = GetParentListItem(EditorBox.CaretPosition);
+        if (currentItem == null)
+            return false;
+
+        if (EditorBox.CaretPosition.CompareTo(currentItem.ContentStart) > 0)
+            return false;
+
+        return ConvertListItemToParagraph(currentItem);
+    }
+
+    private bool ConvertListItemToParagraph(ListItem currentItem)
+    {
+        List parentList = (List)currentItem.Parent;
+        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent as TextElement ?? parentList.Parent as FlowDocument);
+
+        if (outerBlocks == null)
+            outerBlocks = (parentList.Parent as FlowDocument)?.Blocks;
+
+        if (outerBlocks == null)
+            return false;
+
+        string itemText = new TextRange(currentItem.ContentStart, currentItem.ContentEnd).Text;
+        Paragraph paragraph = new(new Run(itemText));
+
+        int indexInList = parentList.ListItems.IndexOf(currentItem);
+        int totalItems = parentList.ListItems.Count;
+
+        if (totalItems == 1)
+        {
+            outerBlocks.InsertAfter(parentList, paragraph);
+            outerBlocks.Remove(parentList);
+        }
+        else if (indexInList == 0)
+        {
+            parentList.ListItems.Remove(currentItem);
+            outerBlocks.InsertBefore(parentList, paragraph);
+        }
+        else if (indexInList == totalItems - 1)
+        {
+            parentList.ListItems.Remove(currentItem);
+            outerBlocks.InsertAfter(parentList, paragraph);
+        }
+        else
+        {
+            List tailList = new()
+            {
+                MarkerStyle = parentList.MarkerStyle
+            };
+
+            parentList.ListItems.Remove(currentItem);
+
+            while (parentList.ListItems.Count > indexInList)
+            {
+                ListItem movedItem = parentList.ListItems[indexInList];
+                parentList.ListItems.RemoveAt(indexInList);
+                tailList.ListItems.Add(movedItem);
+            }
+
+            outerBlocks.InsertAfter(parentList, paragraph);
+            outerBlocks.InsertAfter(paragraph, tailList);
+        }
+
+        EditorBox.CaretPosition = paragraph.ContentStart;
+        MarkDirty();
+        return true;
+    }
+
+    private List<Paragraph> GetParagraphsFromSelection()
+    {
+        List<Paragraph> paragraphs = new();
+
+        if (EditorBox == null)
+            return paragraphs;
+
+        TextPointer navigator = EditorBox.Selection.Start;
+        TextPointer selectionEnd = EditorBox.Selection.End;
+
+        while (navigator != null && navigator.CompareTo(selectionEnd) <= 0)
+        {
+            Paragraph? paragraph = navigator.Paragraph;
+            if (paragraph != null && !paragraphs.Contains(paragraph))
+                paragraphs.Add(paragraph);
+
+            TextPointer? next = paragraph?.ContentEnd.GetNextInsertionPosition(LogicalDirection.Forward)
+                ?? navigator.GetNextInsertionPosition(LogicalDirection.Forward);
+
+            if (next == null || navigator.CompareTo(next) == 0)
+                break;
+
+            navigator = next;
+        }
+
+        return paragraphs;
+    }
+
+    private List<ListItem> GetListItemsFromSelection()
+    {
+        List<ListItem> items = new();
+
+        if (EditorBox == null)
+            return items;
+
+        TextPointer navigator = EditorBox.Selection.Start;
+        TextPointer selectionEnd = EditorBox.Selection.End;
+
+        while (navigator != null && navigator.CompareTo(selectionEnd) <= 0)
+        {
+            ListItem? item = GetParentListItem(navigator);
+            if (item != null && !items.Contains(item))
+                items.Add(item);
+
+            TextPointer? next = item?.ContentEnd.GetNextInsertionPosition(LogicalDirection.Forward)
+                ?? navigator.GetNextInsertionPosition(LogicalDirection.Forward);
+
+            if (next == null || navigator.CompareTo(next) == 0)
+                break;
+
+            navigator = next;
+        }
+
+        return items;
+    }
+
+    private void ApplyListStyle(TextMarkerStyle style)
+    {
+        if (EditorBox == null || !CanFormat())
+            return;
+
+        List<Paragraph> paragraphs = GetParagraphsFromSelection();
+        if (paragraphs.Count == 0)
+            return;
+
+        bool allMatchingListItems = paragraphs.All(p =>
+        {
+            ListItem? item = GetParentListItem(p.ContentStart);
+            return item != null && item.Parent is List list && list.MarkerStyle == style;
+        });
+
+        if (allMatchingListItems)
+        {
+            foreach (ListItem item in GetListItemsFromSelection())
+                ConvertListItemToParagraph(item);
+            return;
+        }
+
+        Paragraph firstParagraph = paragraphs[0];
+        BlockCollection? parentBlocks = GetParentBlockCollection(firstParagraph.Parent as TextElement ?? firstParagraph.Parent as FlowDocument)
+            ?? (firstParagraph.Parent as FlowDocument)?.Blocks;
+
+        if (parentBlocks == null)
+            return;
+
+        List list = new()
+        {
+            MarkerStyle = style
+        };
+
+        parentBlocks.InsertBefore(firstParagraph, list);
+
+        foreach (Paragraph paragraph in paragraphs)
+        {
+            parentBlocks.Remove(paragraph);
+            list.ListItems.Add(new ListItem(paragraph));
+        }
+
+        EditorBox.CaretPosition = list.ListItems.Last().ContentStart;
+        MarkDirty();
+    }
+
+    private void RemoveListFormattingFromSelection()
+    {
+        foreach (ListItem item in GetListItemsFromSelection())
+            ConvertListItemToParagraph(item);
     }
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
@@ -3616,22 +3754,22 @@ public partial class MainWindow : Window
 
     private void ToggleBulletedList()
     {
-        ApplyBulletedListPrefixes();
+        ApplyListStyle(TextMarkerStyle.Disc);
     }
 
     private void ToggleNumberedList()
     {
-        ApplyNumberedListPrefixes();
+        ApplyListStyle(TextMarkerStyle.Decimal);
     }
 
     private void ToggleLetteredList()
     {
-        ApplyLetteredListPrefixes();
+        ApplyListStyle(TextMarkerStyle.LowerLatin);
     }
 
     private void ClearListFormatting()
     {
-        StripListPrefixes();
+        RemoveListFormattingFromSelection();
     }
 
     private void BulletedListButton_Click(object sender, RoutedEventArgs e)
@@ -3756,7 +3894,7 @@ public partial class MainWindow : Window
         if (EditorBox == null)
             return false;
 
-        return GetSelectedLines().Any(line => ListParser.IsListLine(line.Content));
+        return GetListItemsFromSelection().Count > 0;
     }
 
     private void UpdateFormattingControls()

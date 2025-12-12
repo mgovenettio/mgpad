@@ -2906,7 +2906,7 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private static BlockCollection? GetParentBlockCollection(TextElement element)
+    private static BlockCollection? GetParentBlockCollection(DependencyObject? element)
     {
         return element switch
         {
@@ -2950,7 +2950,7 @@ public partial class MainWindow : Window
             MarkerStyle = markerStyle
         };
 
-        BlockCollection? parentBlocks = GetParentBlockCollection(paragraph.Parent as TextElement ?? paragraph.Parent as FlowDocument);
+        BlockCollection? parentBlocks = GetParentBlockCollection(paragraph.Parent ?? (DependencyObject?)EditorBox?.Document);
         if (parentBlocks == null)
             parentBlocks = (paragraph.Parent as FlowDocument)?.Blocks;
 
@@ -3003,7 +3003,7 @@ public partial class MainWindow : Window
     private bool ExitListFromItem(ListItem currentItem)
     {
         List parentList = (List)currentItem.Parent;
-        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent as TextElement ?? parentList.Parent as FlowDocument);
+        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent ?? (DependencyObject?)EditorBox?.Document);
 
         if (outerBlocks == null)
             outerBlocks = (parentList.Parent as FlowDocument)?.Blocks;
@@ -3128,7 +3128,7 @@ public partial class MainWindow : Window
     private bool ConvertListItemToParagraph(ListItem currentItem)
     {
         List parentList = (List)currentItem.Parent;
-        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent as TextElement ?? parentList.Parent as FlowDocument);
+        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent ?? (DependencyObject?)EditorBox?.Document);
 
         if (outerBlocks == null)
             outerBlocks = (parentList.Parent as FlowDocument)?.Blocks;
@@ -3261,7 +3261,7 @@ public partial class MainWindow : Window
         }
 
         Paragraph firstParagraph = paragraphs[0];
-        BlockCollection? parentBlocks = GetParentBlockCollection(firstParagraph.Parent as TextElement ?? firstParagraph.Parent as FlowDocument)
+        BlockCollection? parentBlocks = GetParentBlockCollection(firstParagraph.Parent ?? (DependencyObject?)EditorBox?.Document)
             ?? (firstParagraph.Parent as FlowDocument)?.Blocks;
 
         if (parentBlocks == null)

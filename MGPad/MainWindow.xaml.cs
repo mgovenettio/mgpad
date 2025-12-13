@@ -2781,13 +2781,6 @@ public partial class MainWindow : Window
 
         bool isShiftTab = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
 
-        if (e.Key == Key.Space)
-        {
-            if (TryConvertCurrentParagraphToList())
-                e.Handled = true;
-            return;
-        }
-
         if (e.Key == Key.Enter)
         {
             if (HandleEnterInList())
@@ -2796,7 +2789,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            if (TryConvertCurrentParagraphToList())
+            if (TryConvertCurrentParagraphToList(requireContentAfterPrefix: true, createFollowingListItem: true))
                 e.Handled = true;
             return;
         }
@@ -2917,7 +2910,7 @@ public partial class MainWindow : Window
         };
     }
 
-    private bool TryConvertCurrentParagraphToList()
+    private bool TryConvertCurrentParagraphToList(bool requireContentAfterPrefix = false, bool createFollowingListItem = false)
     {
         if (EditorBox == null)
             return false;
@@ -2928,20 +2921,33 @@ public partial class MainWindow : Window
         if (paragraph == null)
             return false;
 
-        string prefixText = new TextRange(paragraph.ContentStart, caret).Text;
-        Match match = Regex.Match(prefixText, "^(?<marker>(?<num>\\d+)([.)])|(?<letter>[A-Za-z])([.)])|(?<bullet>[\\*-]))\\s*$");
+        string paragraphText = new TextRange(paragraph.ContentStart, paragraph.ContentEnd).Text;
+        string normalizedText = ListParser.NormalizeLine(paragraphText);
 
-        if (!match.Success)
+        if (!ListParser.TryParseListLine(normalizedText, out ParsedListLine parsedLine))
             return false;
 
-        TextMarkerStyle markerStyle = match.Groups["num"].Success
-            ? TextMarkerStyle.Decimal
-            : (match.Groups["letter"].Success ? TextMarkerStyle.LowerLatin : TextMarkerStyle.Disc);
+        if (requireContentAfterPrefix && string.IsNullOrWhiteSpace(parsedLine.Content))
+            return false;
 
-        TextPointer? markerEnd = paragraph.ContentStart.GetPositionAtOffset(prefixText.Length);
+        TextMarkerStyle markerStyle = parsedLine.Type switch
+        {
+            ListLineType.Numbered => TextMarkerStyle.Decimal,
+            ListLineType.Lettered => parsedLine.IsUppercaseLetter ? TextMarkerStyle.UpperLatin : TextMarkerStyle.LowerLatin,
+            _ => TextMarkerStyle.Disc
+        };
+
+        int prefixLength = parsedLine.IndentText.Length
+            + parsedLine.Marker.Length
+            + parsedLine.Punctuation.Length
+            + parsedLine.Spacing.Length;
+
+        TextPointer? markerEnd = paragraph.ContentStart.GetPositionAtOffset(prefixLength);
 
         if (markerEnd == null)
             return false;
+
+        int caretOffset = paragraph.ContentStart.GetOffsetToPosition(caret);
 
         new TextRange(paragraph.ContentStart, markerEnd).Text = string.Empty;
 
@@ -2962,7 +2968,18 @@ public partial class MainWindow : Window
         ListItem listItem = new(paragraph);
         list.ListItems.Add(listItem);
 
-        EditorBox.CaretPosition = listItem.ContentStart;
+        if (createFollowingListItem)
+        {
+            ListItem newItem = new(new Paragraph());
+            list.ListItems.Add(newItem);
+            EditorBox.CaretPosition = newItem.ContentStart;
+        }
+        else
+        {
+            int adjustedOffset = Math.Max(0, caretOffset - prefixLength);
+            TextPointer? adjustedCaret = paragraph.ContentStart.GetPositionAtOffset(adjustedOffset);
+            EditorBox.CaretPosition = adjustedCaret ?? listItem.ContentStart;
+        }
         MarkDirty();
         return true;
     }

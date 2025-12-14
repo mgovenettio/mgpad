@@ -170,8 +170,6 @@
                 <Separator />
                 <ComboBox x:Name="FontFamilyComboBox"
                           Width="180"
-                          IsEditable="True"
-                          StaysOpenOnEdit="True"
                           SelectionChanged="FontFamilyComboBox_SelectionChanged" />
                 <ComboBox x:Name="FontSizeComboBox"
                           Width="70"

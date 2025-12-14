@@ -3466,7 +3466,8 @@ public partial class MainWindow : Window
         if (EditorBox == null || !CanFormat())
             return;
 
-        EditorBox.Selection.ApplyPropertyValue(Inline.FontFamilyProperty, fontFamily);
+        ApplyPropertyToSelectionOrCaret(Inline.FontFamilyProperty, fontFamily);
+        UpdateFontControlsSelection(fontFamily, null);
     }
 
     private void ApplyFontSize(double fontSize)
@@ -3475,7 +3476,63 @@ public partial class MainWindow : Window
             return;
 
         double clampedSize = Math.Min(MaxFontSize, Math.Max(MinFontSize, fontSize));
-        EditorBox.Selection.ApplyPropertyValue(Inline.FontSizeProperty, clampedSize);
+        ApplyPropertyToSelectionOrCaret(Inline.FontSizeProperty, clampedSize);
+        UpdateFontControlsSelection(null, clampedSize);
+    }
+
+    private void ApplyPropertyToSelectionOrCaret(DependencyProperty property, object value)
+    {
+        if (EditorBox == null)
+            return;
+
+        TextSelection selection = EditorBox.Selection;
+
+        if (selection.IsEmpty)
+        {
+            TextPointer? insertionPosition = EditorBox.CaretPosition?.GetInsertionPosition(LogicalDirection.Forward)
+                ?? EditorBox.CaretPosition;
+
+            if (insertionPosition != null)
+            {
+                var caretRange = new TextRange(insertionPosition, insertionPosition);
+                caretRange.ApplyPropertyValue(property, value);
+                EditorBox.CaretPosition = insertionPosition;
+            }
+        }
+        else
+        {
+            selection.ApplyPropertyValue(property, value);
+        }
+    }
+
+    private void UpdateFontControlsSelection(FontFamily? fontFamily, double? fontSize)
+    {
+        if (FontFamilyComboBox == null || FontSizeComboBox == null)
+            return;
+
+        _isUpdatingFontControls = true;
+        try
+        {
+            if (fontFamily != null)
+            {
+                var match = FontFamilyComboBox.Items.Cast<FontFamily>()
+                    .FirstOrDefault(f => string.Equals(f.Source, fontFamily.Source, StringComparison.OrdinalIgnoreCase));
+
+                FontFamilyComboBox.SelectedItem = match ?? fontFamily;
+            }
+
+            if (fontSize != null)
+            {
+                double clampedSize = Math.Min(MaxFontSize, Math.Max(MinFontSize, fontSize.Value));
+                FontSizeComboBox.Text = clampedSize.ToString("0.#");
+                var closest = _defaultFontSizes.FirstOrDefault(s => Math.Abs(s - clampedSize) < 0.1);
+                FontSizeComboBox.SelectedItem = closest > 0 ? closest : null;
+            }
+        }
+        finally
+        {
+            _isUpdatingFontControls = false;
+        }
     }
 
     private void FontSizeComboBox_Loaded(object sender, RoutedEventArgs e)

@@ -90,6 +90,7 @@ public partial class MainWindow : Window
     private bool _isUpdatingFontControls;
     private readonly double[] _defaultFontSizes = new double[]
         { 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72 };
+    private TextBox? _fontSizeEditableTextBox;
     private static readonly Regex NumberRegex = new(
         "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?",
         RegexOptions.Compiled);
@@ -3477,6 +3478,92 @@ public partial class MainWindow : Window
         EditorBox.Selection.ApplyPropertyValue(Inline.FontSizeProperty, clampedSize);
     }
 
+    private void FontSizeComboBox_Loaded(object sender, RoutedEventArgs e)
+    {
+        AttachFontSizeTextBoxHandlers();
+    }
+
+    private void AttachFontSizeTextBoxHandlers()
+    {
+        if (FontSizeComboBox == null || _fontSizeEditableTextBox != null)
+            return;
+
+        FontSizeComboBox.ApplyTemplate();
+        _fontSizeEditableTextBox = FontSizeComboBox.Template?
+            .FindName("PART_EditableTextBox", FontSizeComboBox) as TextBox;
+
+        if (_fontSizeEditableTextBox != null)
+        {
+            _fontSizeEditableTextBox.PreviewTextInput += FontSizeTextBox_PreviewTextInput;
+            DataObject.AddPastingHandler(_fontSizeEditableTextBox, FontSizeTextBox_Pasting);
+        }
+    }
+
+    private void FontSizeTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        if (_fontSizeEditableTextBox == null)
+            return;
+
+        string prospectiveText = GetProspectiveFontSizeText(e.Text);
+        e.Handled = !IsPartialFontSizeTextValid(prospectiveText);
+    }
+
+    private void FontSizeTextBox_Pasting(object sender, DataObjectPastingEventArgs e)
+    {
+        if (_fontSizeEditableTextBox == null)
+            return;
+
+        if (e.DataObject.GetData(DataFormats.Text) is string pastedText)
+        {
+            string prospectiveText = GetProspectiveFontSizeText(pastedText);
+            if (!IsPartialFontSizeTextValid(prospectiveText))
+            {
+                e.CancelCommand();
+            }
+        }
+        else
+        {
+            e.CancelCommand();
+        }
+    }
+
+    private string GetProspectiveFontSizeText(string newText)
+    {
+        if (_fontSizeEditableTextBox == null)
+            return FontSizeComboBox?.Text ?? string.Empty;
+
+        int selectionStart = _fontSizeEditableTextBox.SelectionStart;
+        int selectionLength = _fontSizeEditableTextBox.SelectionLength;
+        string currentText = _fontSizeEditableTextBox.Text ?? string.Empty;
+
+        return currentText.Remove(selectionStart, selectionLength).Insert(selectionStart, newText);
+    }
+
+    private bool IsPartialFontSizeTextValid(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return true;
+
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        string decimalSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+
+        if (text.Equals(decimalSeparator, StringComparison.Ordinal))
+            return true;
+
+        if (text.EndsWith(decimalSeparator, StringComparison.Ordinal))
+        {
+            string withoutSeparator = text[..^decimalSeparator.Length];
+            if (string.IsNullOrEmpty(withoutSeparator))
+                return true;
+
+            return double.TryParse(withoutSeparator, NumberStyles.Number, CultureInfo.CurrentCulture, out _);
+        }
+
+        return double.TryParse(text, NumberStyles.Number, CultureInfo.CurrentCulture, out _);
+    }
+
     private void FontFamilyComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_isUpdatingFontControls || !CanFormat())
@@ -3508,9 +3595,17 @@ public partial class MainWindow : Window
 
     private void FontSizeComboBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        AttachFontSizeTextBoxHandlers();
+
         if (e.Key == Key.Enter)
         {
             ApplyFontSizeFromTextInput();
+            e.Handled = true;
+            return;
+        }
+
+        if (!IsFontSizeKeyAllowed(e))
+        {
             e.Handled = true;
         }
     }
@@ -3530,6 +3625,59 @@ public partial class MainWindow : Window
         {
             UpdateFontControlsFromSelection();
         }
+    }
+
+    private bool IsFontSizeKeyAllowed(KeyEventArgs e)
+    {
+        if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Command | ModifierKeys.Alt)) != 0)
+            return true;
+
+        switch (e.Key)
+        {
+            case Key.Back:
+            case Key.Delete:
+            case Key.Tab:
+            case Key.Left:
+            case Key.Right:
+            case Key.Up:
+            case Key.Down:
+            case Key.Home:
+            case Key.End:
+            case Key.PageUp:
+            case Key.PageDown:
+            case Key.Escape:
+                return true;
+        }
+
+        if (e.Key >= Key.F1 && e.Key <= Key.F24)
+            return true;
+
+        if (e.Key >= Key.D0 && e.Key <= Key.D9 && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+            return true;
+
+        if (e.Key >= Key.NumPad0 && e.Key <= Key.NumPad9)
+            return true;
+
+        string decimalSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+
+        if (IsDecimalKey(e.Key, decimalSeparator))
+            return IsPartialFontSizeTextValid(GetProspectiveFontSizeText(decimalSeparator));
+
+        return false;
+    }
+
+    private static bool IsDecimalKey(Key key, string decimalSeparator)
+    {
+        if (key == Key.Decimal)
+            return true;
+
+        if (decimalSeparator == "." && key == Key.OemPeriod)
+            return true;
+
+        if (decimalSeparator == "," && key == Key.OemComma)
+            return true;
+
+        return false;
     }
 
     private Color? ShowColorPicker(Color? initialColor)

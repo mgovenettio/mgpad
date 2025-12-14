@@ -151,23 +151,6 @@
                               ToolTip="Strikethrough (Ctrl+Shift+X)"
                               Command="{x:Static local:MainWindow.ToggleStrikethroughCommand}" />
                 <Separator />
-                <Button x:Name="NumberedListButton"
-                        Content="Numbered List"
-                        ToolTip="Apply or remove a numbered list to the selected paragraphs."
-                        Click="NumberedListButton_Click" />
-                <Button x:Name="LetteredListButton"
-                        Content="Lettered List"
-                        ToolTip="Apply or remove a lettered list to the selected paragraphs."
-                        Click="LetteredListButton_Click" />
-                <Button x:Name="BulletedListButton"
-                        Content="Bulleted List"
-                        ToolTip="Apply or remove a bulleted list to the selected paragraphs."
-                        Click="BulletedListButton_Click" />
-                <Button x:Name="ClearListFormattingButton"
-                        Content="Clear List Formatting"
-                        ToolTip="Remove list formatting from the selected paragraphs."
-                        Click="ClearListFormattingButton_Click" />
-                <Separator />
                 <ComboBox x:Name="FontFamilyComboBox"
                           Width="180"
                           SelectionChanged="FontFamilyComboBox_SelectionChanged" />

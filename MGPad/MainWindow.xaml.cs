@@ -3423,7 +3423,6 @@ public partial class MainWindow : Window
             if (!canFormat || EditorBox == null)
             {
                 FontFamilyComboBox.SelectedItem = null;
-                FontFamilyComboBox.Text = string.Empty;
                 FontSizeComboBox.SelectedItem = null;
                 FontSizeComboBox.Text = string.Empty;
                 return;
@@ -3435,13 +3434,11 @@ public partial class MainWindow : Window
             {
                 var match = FontFamilyComboBox.Items.Cast<FontFamily>()
                     .FirstOrDefault(f => string.Equals(f.Source, family.Source, StringComparison.OrdinalIgnoreCase));
-                FontFamilyComboBox.SelectedItem = match ?? family;
-                FontFamilyComboBox.Text = family.Source;
+                FontFamilyComboBox.SelectedItem = match;
             }
             else
             {
                 FontFamilyComboBox.SelectedItem = null;
-                FontFamilyComboBox.Text = string.Empty;
             }
 
             var sizeValue = selection.GetPropertyValue(Inline.FontSizeProperty);

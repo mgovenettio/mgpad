@@ -175,6 +175,7 @@
                           Width="70"
                           IsEditable="True"
                           StaysOpenOnEdit="True"
+                          Loaded="FontSizeComboBox_Loaded"
                           SelectionChanged="FontSizeComboBox_SelectionChanged"
                           LostKeyboardFocus="FontSizeComboBox_LostFocus"
                           PreviewKeyDown="FontSizeComboBox_PreviewKeyDown" />

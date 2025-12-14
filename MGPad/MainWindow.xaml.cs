@@ -4144,14 +4144,6 @@ public partial class MainWindow : Window
             MonospacedButton.IsEnabled = canFormat;
             MonospacedButton.IsChecked = canFormat && IsSelectionMonospaced();
         }
-        if (BulletedListButton != null)
-            BulletedListButton.IsEnabled = canFormat;
-        if (NumberedListButton != null)
-            NumberedListButton.IsEnabled = canFormat;
-        if (LetteredListButton != null)
-            LetteredListButton.IsEnabled = canFormat;
-        if (ClearListFormattingButton != null)
-            ClearListFormattingButton.IsEnabled = canFormat && IsSelectionInList();
         if (HighlightButton != null)
             HighlightButton.IsEnabled = canFormat;
         if (TextColorButton != null)

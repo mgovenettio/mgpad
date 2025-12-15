@@ -100,6 +100,11 @@ public partial class MainWindow : Window
     private Guid _untitledDocumentId = Guid.NewGuid();
     private bool _isRecoveredDocument;
     private readonly List<string> _pendingRecoveryAutosavePaths = new();
+    // Keep list indentation uniform across bullet, numbered, and lettered markers so the
+    // content column lines up regardless of the marker glyph width.
+    private static readonly Thickness ListIndentationMargin = new(18, 0, 0, 0);
+    private const double ListIndentationMarkerOffset = 18;
+    private static readonly Thickness ListIndentationPadding = new(0);
 
     private static readonly TimeSpan AutosaveInterval = TimeSpan.FromSeconds(60);
 
@@ -2957,10 +2962,7 @@ public partial class MainWindow : Window
 
         new TextRange(paragraph.ContentStart, markerEnd).Text = string.Empty;
 
-        List list = new()
-        {
-            MarkerStyle = markerStyle
-        };
+        List list = CreateList(markerStyle);
 
         BlockCollection? parentBlocks = GetParentBlockCollection(paragraph.Parent ?? (DependencyObject?)EditorBox?.Document);
         if (parentBlocks == null)
@@ -3291,10 +3293,7 @@ public partial class MainWindow : Window
         if (parentBlocks == null)
             return;
 
-        List list = new()
-        {
-            MarkerStyle = style
-        };
+        List list = CreateList(style);
 
         parentBlocks.InsertBefore(firstParagraph, list);
 
@@ -3306,6 +3305,17 @@ public partial class MainWindow : Window
 
         EditorBox.CaretPosition = list.ListItems.Last().ContentStart;
         MarkDirty();
+    }
+
+    private static List CreateList(TextMarkerStyle style)
+    {
+        return new List
+        {
+            MarkerStyle = style,
+            Margin = ListIndentationMargin,
+            MarkerOffset = ListIndentationMarkerOffset,
+            Padding = ListIndentationPadding
+        };
     }
 
     private void RemoveListFormattingFromSelection()

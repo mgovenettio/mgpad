@@ -2939,12 +2939,16 @@ public partial class MainWindow : Window
             _ => TextMarkerStyle.Disc
         };
 
-        int prefixLength = parsedLine.IndentText.Length
-            + parsedLine.Marker.Length
-            + parsedLine.Punctuation.Length
-            + parsedLine.Spacing.Length;
+        string prefixText = ListParser.BuildPrefix(
+            parsedLine.IndentText,
+            parsedLine.Marker,
+            parsedLine.Punctuation,
+            parsedLine.Spacing);
 
-        TextPointer? markerEnd = paragraph.ContentStart.GetPositionAtOffset(prefixLength);
+        if (!normalizedText.StartsWith(prefixText, StringComparison.Ordinal))
+            return false;
+
+        TextPointer? markerEnd = paragraph.ContentStart.GetPositionAtOffset(prefixText.Length);
 
         if (markerEnd == null)
             return false;
@@ -2978,7 +2982,9 @@ public partial class MainWindow : Window
         }
         else
         {
-            int adjustedOffset = Math.Max(0, caretOffset - prefixLength);
+            int adjustedOffset = caretOffset >= prefixText.Length
+                ? caretOffset - prefixText.Length
+                : 0;
             TextPointer? adjustedCaret = paragraph.ContentStart.GetPositionAtOffset(adjustedOffset);
             EditorBox.CaretPosition = adjustedCaret ?? listItem.ContentStart;
         }

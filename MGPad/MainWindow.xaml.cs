@@ -3553,7 +3553,7 @@ public partial class MainWindow : Window
         if (_fontSizeEditableTextBox != null)
         {
             _fontSizeEditableTextBox.PreviewTextInput += FontSizeTextBox_PreviewTextInput;
-            DataObject.AddPastingHandler(_fontSizeEditableTextBox, FontSizeTextBox_Pasting);
+            System.Windows.DataObject.AddPastingHandler(_fontSizeEditableTextBox, FontSizeTextBox_Pasting);
         }
     }
 
@@ -3571,7 +3571,7 @@ public partial class MainWindow : Window
         if (_fontSizeEditableTextBox == null)
             return;
 
-        if (e.DataObject.GetData(DataFormats.Text) is string pastedText)
+        if (e.DataObject.GetData(System.Windows.DataFormats.Text) is string pastedText)
         {
             string prospectiveText = GetProspectiveFontSizeText(pastedText);
             if (!IsPartialFontSizeTextValid(prospectiveText))

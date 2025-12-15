@@ -25,6 +25,7 @@ using FontFamily = System.Windows.Media.FontFamily;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using Color = System.Windows.Media.Color;
 using Brush = System.Windows.Media.Brush;
+using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace MGPad;
 
@@ -90,7 +91,7 @@ public partial class MainWindow : Window
     private bool _isUpdatingFontControls;
     private readonly double[] _defaultFontSizes = new double[]
         { 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72 };
-    private TextBox? _fontSizeEditableTextBox;
+    private WpfTextBox? _fontSizeEditableTextBox;
     private static readonly Regex NumberRegex = new(
         "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?",
         RegexOptions.Compiled);
@@ -3547,7 +3548,7 @@ public partial class MainWindow : Window
 
         FontSizeComboBox.ApplyTemplate();
         _fontSizeEditableTextBox = FontSizeComboBox.Template?
-            .FindName("PART_EditableTextBox", FontSizeComboBox) as TextBox;
+            .FindName("PART_EditableTextBox", FontSizeComboBox) as WpfTextBox;
 
         if (_fontSizeEditableTextBox != null)
         {

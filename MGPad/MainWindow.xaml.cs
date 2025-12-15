@@ -3687,7 +3687,7 @@ public partial class MainWindow : Window
 
     private bool IsFontSizeKeyAllowed(KeyEventArgs e)
     {
-        if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Command | ModifierKeys.Alt)) != 0)
+        if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Windows)) != 0)
             return true;
 
         switch (e.Key)

@@ -1644,12 +1644,12 @@ public partial class MainWindow : Window
 
         double fontSize = 12;
         const double lineSpacingFactor = 1.4;
-        var fontCache = new Dictionary<(string Family, XFontStyle Style), XFont>();
+        var fontCache = new Dictionary<(string Family, XFontStyleEx Style), XFont>();
         XFont regularFont = GetOrCreateFont(
             fontCache,
             _styleConfiguration.BodyFontFamily,
             fontSize,
-            XFontStyle.Regular);
+            XFontStyleEx.Regular);
 
         // Layout: 1-inch margins (72 points per inch)
         double marginLeft = 72;
@@ -1852,20 +1852,20 @@ public partial class MainWindow : Window
 
     private static XFont GetFontForRun(
         PdfTextRun run,
-        Dictionary<(string Family, XFontStyle Style), XFont> fontCache,
+        Dictionary<(string Family, XFontStyleEx Style), XFont> fontCache,
         StyleConfiguration styleConfiguration,
         double fontSize)
     {
-        XFontStyle style = XFontStyle.Regular;
+        XFontStyleEx style = XFontStyleEx.Regular;
 
         if (run.IsBold)
-            style |= XFontStyle.Bold;
+            style |= XFontStyleEx.Bold;
         if (run.IsItalic)
-            style |= XFontStyle.Italic;
+            style |= XFontStyleEx.Italic;
         if (run.IsUnderline)
-            style |= XFontStyle.Underline;
+            style |= XFontStyleEx.Underline;
         if (run.IsStrikethrough)
-            style |= XFontStyle.Strikeout;
+            style |= XFontStyleEx.Strikeout;
 
         string selectedFamily = GetFontFamilyForRun(run, styleConfiguration);
 
@@ -1873,10 +1873,10 @@ public partial class MainWindow : Window
     }
 
     private static XFont GetOrCreateFont(
-        Dictionary<(string Family, XFontStyle Style), XFont> fontCache,
+        Dictionary<(string Family, XFontStyleEx Style), XFont> fontCache,
         string fontFamily,
         double fontSize,
-        XFontStyle style)
+        XFontStyleEx style)
     {
         var key = (fontFamily, style);
 

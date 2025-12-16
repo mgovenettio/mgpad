@@ -205,6 +205,18 @@
                              PreviewKeyDown="EditorBox_PreviewKeyDown"
                              TextChanged="EditorBox_TextChanged">
                     <RichTextBox.InputBindings>
+                        <KeyBinding Command="{x:Static local:MainWindow.ToggleBoldCommand}"
+                                    Modifiers="Control"
+                                    Key="B" />
+                        <KeyBinding Command="{x:Static local:MainWindow.ToggleItalicCommand}"
+                                    Modifiers="Control"
+                                    Key="I" />
+                        <KeyBinding Command="{x:Static local:MainWindow.ToggleUnderlineCommand}"
+                                    Modifiers="Control"
+                                    Key="U" />
+                        <KeyBinding Command="{x:Static local:MainWindow.ToggleStrikethroughCommand}"
+                                    Modifiers="Control+Shift"
+                                    Key="X" />
                         <KeyBinding Command="{x:Static local:MainWindow.ToggleMonospacedCommand}"
                                     Modifiers="Control+Shift"
                                     Key="M" />

@@ -3851,6 +3851,21 @@ public partial class MainWindow : Window
         ApplyHighlightBrush(new SolidColorBrush(color));
     }
 
+    private void ShowHighlightColorDialog()
+    {
+        Color? current = null;
+        if (EditorBox != null)
+        {
+            object property = EditorBox.Selection.GetPropertyValue(TextElement.BackgroundProperty);
+            if (property is SolidColorBrush brush)
+                current = brush.Color;
+        }
+
+        Color? picked = ShowColorPicker(current);
+        if (picked.HasValue)
+            ApplyHighlight(picked.Value);
+    }
+
     private void ToggleBold()
     {
         if (EditorBox == null || !CanFormat())
@@ -4064,17 +4079,15 @@ public partial class MainWindow : Window
         if (!CanFormat())
             return;
 
-        Color? current = null;
-        if (EditorBox != null)
+        if (HighlightButton?.ContextMenu != null)
         {
-            object property = EditorBox.Selection.GetPropertyValue(TextElement.BackgroundProperty);
-            if (property is SolidColorBrush brush)
-                current = brush.Color;
+            HighlightButton.ContextMenu.PlacementTarget = HighlightButton;
+            HighlightButton.ContextMenu.Placement = PlacementMode.Bottom;
+            HighlightButton.ContextMenu.IsOpen = true;
+            return;
         }
 
-        Color? picked = ShowColorPicker(current);
-        if (picked.HasValue)
-            ApplyHighlight(picked.Value);
+        ShowHighlightColorDialog();
     }
 
     private void HighlightToolbarColor_Click(object sender, RoutedEventArgs e)
@@ -4082,8 +4095,41 @@ public partial class MainWindow : Window
         if (!CanFormat())
             return;
 
-        if (sender is System.Windows.Controls.Control control && control.Background is Brush brush)
-            ApplyHighlightBrush(brush);
+        if (sender is System.Windows.Controls.Control control)
+        {
+            if (control.Tag is string tag && string.Equals(tag, "None", StringComparison.OrdinalIgnoreCase))
+            {
+                ApplyHighlightBrush(null);
+                return;
+            }
+
+            Brush? brush = control.Background;
+            if (brush == null && control.Tag is string colorText)
+            {
+                object? converted = ColorConverter.ConvertFromString(colorText);
+                if (converted is Color color)
+                    brush = new SolidColorBrush(color);
+            }
+
+            if (brush != null)
+                ApplyHighlightBrush(brush);
+        }
+    }
+
+    private void HighlightMoreColorsMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        ShowHighlightColorDialog();
+    }
+
+    private void ClearHighlightMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanFormat())
+            return;
+
+        ApplyHighlightBrush(null);
     }
 
     private void TextColorButton_Click(object sender, RoutedEventArgs e)

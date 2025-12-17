@@ -165,7 +165,100 @@
                 <Button x:Name="HighlightButton"
                         Content="Highlight"
                         ToolTip="Set highlight color"
-                        Click="HighlightButton_Click" />
+                        Click="HighlightButton_Click">
+                    <Button.ContextMenu>
+                        <ContextMenu x:Name="HighlightContextMenu">
+                            <MenuItem Header="No Highlight"
+                                      Click="ClearHighlightMenuItem_Click">
+                                <MenuItem.Icon>
+                                    <Grid Width="16" Height="16">
+                                        <Border Width="16"
+                                                Height="16"
+                                                BorderBrush="Gray"
+                                                BorderThickness="1"
+                                                Background="White" />
+                                        <Line X1="0"
+                                              Y1="0"
+                                              X2="16"
+                                              Y2="16"
+                                              Stroke="Gray"
+                                              StrokeThickness="2" />
+                                    </Grid>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator />
+                            <MenuItem Header="Yellow"
+                                      Tag="#FFFFFF00"
+                                      Click="HighlightToolbarColor_Click">
+                                <MenuItem.Icon>
+                                    <Border Width="16"
+                                            Height="16"
+                                            BorderBrush="Gray"
+                                            BorderThickness="1"
+                                            Background="#FFFFFF00" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Green"
+                                      Tag="#FF7CFC00"
+                                      Click="HighlightToolbarColor_Click">
+                                <MenuItem.Icon>
+                                    <Border Width="16"
+                                            Height="16"
+                                            BorderBrush="Gray"
+                                            BorderThickness="1"
+                                            Background="#FF7CFC00" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Cyan"
+                                      Tag="#FF00FFFF"
+                                      Click="HighlightToolbarColor_Click">
+                                <MenuItem.Icon>
+                                    <Border Width="16"
+                                            Height="16"
+                                            BorderBrush="Gray"
+                                            BorderThickness="1"
+                                            Background="#FF00FFFF" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Pink"
+                                      Tag="#FFFF69B4"
+                                      Click="HighlightToolbarColor_Click">
+                                <MenuItem.Icon>
+                                    <Border Width="16"
+                                            Height="16"
+                                            BorderBrush="Gray"
+                                            BorderThickness="1"
+                                            Background="#FFFF69B4" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Orange"
+                                      Tag="#FFFFA500"
+                                      Click="HighlightToolbarColor_Click">
+                                <MenuItem.Icon>
+                                    <Border Width="16"
+                                            Height="16"
+                                            BorderBrush="Gray"
+                                            BorderThickness="1"
+                                            Background="#FFFFA500" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Gray"
+                                      Tag="#FFBEBEBE"
+                                      Click="HighlightToolbarColor_Click">
+                                <MenuItem.Icon>
+                                    <Border Width="16"
+                                            Height="16"
+                                            BorderBrush="Gray"
+                                            BorderThickness="1"
+                                            Background="#FFBEBEBE" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator />
+                            <MenuItem Header="More Colors..."
+                                      Click="HighlightMoreColorsMenuItem_Click" />
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
                 <Button x:Name="TextColorButton"
                         Content="Text Color"
                         ToolTip="Set text color"

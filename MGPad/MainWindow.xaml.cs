@@ -92,6 +92,8 @@ public partial class MainWindow : Window
     private readonly double[] _defaultFontSizes = new double[]
         { 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72 };
     private WpfTextBox? _fontSizeEditableTextBox;
+    private FontFamily? _lastKnownFontFamily;
+    private double? _lastKnownFontSize;
     private static readonly Regex NumberRegex = new(
         "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?",
         RegexOptions.Compiled);
@@ -3439,39 +3441,73 @@ public partial class MainWindow : Window
             FontSizeComboBox.IsEnabled = canFormat;
 
             if (!canFormat || EditorBox == null)
-            {
-                FontFamilyComboBox.SelectedItem = null;
-                FontFamilyComboBox.Text = string.Empty;
-                FontSizeComboBox.SelectedItem = null;
-                FontSizeComboBox.Text = string.Empty;
                 return;
-            }
 
             var selection = EditorBox.Selection;
+            bool isSelectionEmpty = selection.IsEmpty;
+
             FontFamily? selectionFamily = GetSelectionOrCaretFontFamily(selection);
             if (selectionFamily != null)
             {
                 FontFamily? matchedFamily = ResolveComboFontFamily(selectionFamily);
                 FontFamilyComboBox.SelectedItem = matchedFamily;
                 FontFamilyComboBox.Text = (matchedFamily ?? selectionFamily).Source;
+                _lastKnownFontFamily = selectionFamily;
             }
             else
             {
-                FontFamilyComboBox.SelectedItem = null;
-                FontFamilyComboBox.Text = string.Empty;
+                FontFamily? fallbackFamily = isSelectionEmpty
+                    ? _lastKnownFontFamily ?? EditorBox.Document?.FontFamily
+                    : null;
+
+                if (fallbackFamily != null)
+                {
+                    _lastKnownFontFamily ??= fallbackFamily;
+                    FontFamily? matchedFamily = ResolveComboFontFamily(fallbackFamily);
+                    FontFamilyComboBox.SelectedItem = matchedFamily;
+                    FontFamilyComboBox.Text = (matchedFamily ?? fallbackFamily).Source;
+                }
+                else
+                {
+                    FontFamilyComboBox.SelectedItem = null;
+                    FontFamilyComboBox.Text = string.Empty;
+                }
             }
 
-            var sizeValue = selection.GetPropertyValue(Inline.FontSizeProperty);
-            if (sizeValue is double size)
+            object sizeValue = selection.GetPropertyValue(Inline.FontSizeProperty);
+            if (isSelectionEmpty && (sizeValue == DependencyProperty.UnsetValue || sizeValue is not double))
             {
-                FontSizeComboBox.Text = size.ToString("0.#");
-                var closest = _defaultFontSizes.FirstOrDefault(s => Math.Abs(s - size) < 0.1);
+                sizeValue = EditorBox.CaretPosition?.GetPropertyValue(Inline.FontSizeProperty);
+            }
+
+            double? selectionSize = sizeValue is double size ? size : null;
+            if (selectionSize != null)
+            {
+                double clampedSize = Math.Min(MaxFontSize, Math.Max(MinFontSize, selectionSize.Value));
+                FontSizeComboBox.Text = clampedSize.ToString("0.#");
+                var closest = _defaultFontSizes.FirstOrDefault(s => Math.Abs(s - clampedSize) < 0.1);
                 FontSizeComboBox.SelectedItem = closest > 0 ? closest : null;
+                _lastKnownFontSize = clampedSize;
             }
             else
             {
-                FontSizeComboBox.SelectedItem = null;
-                FontSizeComboBox.Text = string.Empty;
+                double? fallbackSize = isSelectionEmpty
+                    ? _lastKnownFontSize ?? EditorBox.Document?.FontSize
+                    : null;
+
+                if (fallbackSize != null)
+                {
+                    double clampedSize = Math.Min(MaxFontSize, Math.Max(MinFontSize, fallbackSize.Value));
+                    _lastKnownFontSize ??= clampedSize;
+                    FontSizeComboBox.Text = clampedSize.ToString("0.#");
+                    var closest = _defaultFontSizes.FirstOrDefault(s => Math.Abs(s - clampedSize) < 0.1);
+                    FontSizeComboBox.SelectedItem = closest > 0 ? closest : null;
+                }
+                else
+                {
+                    FontSizeComboBox.SelectedItem = null;
+                    FontSizeComboBox.Text = string.Empty;
+                }
             }
         }
         finally
@@ -3486,6 +3522,7 @@ public partial class MainWindow : Window
             return;
 
         ApplyPropertyToSelectionOrCaret(Inline.FontFamilyProperty, fontFamily);
+        _lastKnownFontFamily = fontFamily;
         UpdateFontControlsSelection(fontFamily, null);
     }
 
@@ -3496,6 +3533,7 @@ public partial class MainWindow : Window
 
         double clampedSize = Math.Min(MaxFontSize, Math.Max(MinFontSize, fontSize));
         ApplyPropertyToSelectionOrCaret(Inline.FontSizeProperty, clampedSize);
+        _lastKnownFontSize = clampedSize;
         UpdateFontControlsSelection(null, clampedSize);
     }
 
@@ -3506,21 +3544,29 @@ public partial class MainWindow : Window
 
         TextSelection selection = EditorBox.Selection;
 
-        if (selection.IsEmpty)
+        EditorBox.BeginChange();
+        try
         {
-            TextPointer? insertionPosition = EditorBox.CaretPosition?.GetInsertionPosition(LogicalDirection.Forward)
-                ?? EditorBox.CaretPosition;
-
-            if (insertionPosition != null)
+            if (selection.IsEmpty)
             {
-                var caretRange = new TextRange(insertionPosition, insertionPosition);
-                caretRange.ApplyPropertyValue(property, value);
-                EditorBox.CaretPosition = insertionPosition;
+                TextPointer? insertionPosition = EditorBox.CaretPosition?.GetInsertionPosition(LogicalDirection.Forward)
+                    ?? EditorBox.CaretPosition;
+
+                if (insertionPosition != null)
+                {
+                    selection.Select(insertionPosition, insertionPosition);
+                    selection.ApplyPropertyValue(property, value);
+                    EditorBox.CaretPosition = selection.End;
+                }
+            }
+            else
+            {
+                selection.ApplyPropertyValue(property, value);
             }
         }
-        else
+        finally
         {
-            selection.ApplyPropertyValue(property, value);
+            EditorBox.EndChange();
         }
     }
 
@@ -3534,6 +3580,7 @@ public partial class MainWindow : Window
         {
             if (fontFamily != null)
             {
+                _lastKnownFontFamily = fontFamily;
                 FontFamily? matchedFamily = ResolveComboFontFamily(fontFamily);
                 FontFamilyComboBox.SelectedItem = matchedFamily;
                 FontFamilyComboBox.Text = (matchedFamily ?? fontFamily).Source;
@@ -3542,6 +3589,7 @@ public partial class MainWindow : Window
             if (fontSize != null)
             {
                 double clampedSize = Math.Min(MaxFontSize, Math.Max(MinFontSize, fontSize.Value));
+                _lastKnownFontSize = clampedSize;
                 FontSizeComboBox.Text = clampedSize.ToString("0.#");
                 var closest = _defaultFontSizes.FirstOrDefault(s => Math.Abs(s - clampedSize) < 0.1);
                 FontSizeComboBox.SelectedItem = closest > 0 ? closest : null;
@@ -3764,16 +3812,15 @@ public partial class MainWindow : Window
         if (selectionFamily is FontFamily fontFamily)
             return fontFamily;
 
-        TextPointer? caretPosition = EditorBox.CaretPosition;
-        if (caretPosition != null)
+        if (selection.IsEmpty)
         {
-            TextPointer insertionPosition = caretPosition.GetInsertionPosition(LogicalDirection.Forward)
-                ?? caretPosition;
-
-            var caretRange = new TextRange(insertionPosition, insertionPosition);
-            object caretFamily = caretRange.GetPropertyValue(Inline.FontFamilyProperty);
-            if (caretFamily is FontFamily caretFontFamily)
-                return caretFontFamily;
+            TextPointer? caretPosition = EditorBox.CaretPosition;
+            if (caretPosition != null)
+            {
+                object caretFamily = caretPosition.GetPropertyValue(Inline.FontFamilyProperty);
+                if (caretFamily is FontFamily caretFontFamily)
+                    return caretFontFamily;
+            }
         }
 
         return EditorBox.Document?.FontFamily;

@@ -3441,22 +3441,24 @@ public partial class MainWindow : Window
             if (!canFormat || EditorBox == null)
             {
                 FontFamilyComboBox.SelectedItem = null;
+                FontFamilyComboBox.Text = string.Empty;
                 FontSizeComboBox.SelectedItem = null;
                 FontSizeComboBox.Text = string.Empty;
                 return;
             }
 
             var selection = EditorBox.Selection;
-            var familyValue = selection.GetPropertyValue(Inline.FontFamilyProperty);
-            if (familyValue is FontFamily family)
+            FontFamily? selectionFamily = GetSelectionOrCaretFontFamily(selection);
+            if (selectionFamily != null)
             {
-                var match = FontFamilyComboBox.Items.Cast<FontFamily>()
-                    .FirstOrDefault(f => string.Equals(f.Source, family.Source, StringComparison.OrdinalIgnoreCase));
-                FontFamilyComboBox.SelectedItem = match;
+                FontFamily? matchedFamily = ResolveComboFontFamily(selectionFamily);
+                FontFamilyComboBox.SelectedItem = matchedFamily;
+                FontFamilyComboBox.Text = (matchedFamily ?? selectionFamily).Source;
             }
             else
             {
                 FontFamilyComboBox.SelectedItem = null;
+                FontFamilyComboBox.Text = string.Empty;
             }
 
             var sizeValue = selection.GetPropertyValue(Inline.FontSizeProperty);
@@ -3532,10 +3534,9 @@ public partial class MainWindow : Window
         {
             if (fontFamily != null)
             {
-                var match = FontFamilyComboBox.Items.Cast<FontFamily>()
-                    .FirstOrDefault(f => string.Equals(f.Source, fontFamily.Source, StringComparison.OrdinalIgnoreCase));
-
-                FontFamilyComboBox.SelectedItem = match ?? fontFamily;
+                FontFamily? matchedFamily = ResolveComboFontFamily(fontFamily);
+                FontFamilyComboBox.SelectedItem = matchedFamily;
+                FontFamilyComboBox.Text = (matchedFamily ?? fontFamily).Source;
             }
 
             if (fontSize != null)
@@ -3752,6 +3753,68 @@ public partial class MainWindow : Window
             return true;
 
         return false;
+    }
+
+    private FontFamily? GetSelectionOrCaretFontFamily(TextSelection selection)
+    {
+        if (EditorBox == null)
+            return null;
+
+        object selectionFamily = selection.GetPropertyValue(Inline.FontFamilyProperty);
+        if (selectionFamily is FontFamily fontFamily)
+            return fontFamily;
+
+        TextPointer? caretPosition = EditorBox.CaretPosition;
+        if (caretPosition != null)
+        {
+            TextPointer insertionPosition = caretPosition.GetInsertionPosition(LogicalDirection.Forward)
+                ?? caretPosition;
+
+            var caretRange = new TextRange(insertionPosition, insertionPosition);
+            object caretFamily = caretRange.GetPropertyValue(Inline.FontFamilyProperty);
+            if (caretFamily is FontFamily caretFontFamily)
+                return caretFontFamily;
+        }
+
+        return EditorBox.Document?.FontFamily;
+    }
+
+    private FontFamily? ResolveComboFontFamily(FontFamily fontFamily)
+    {
+        if (FontFamilyComboBox == null)
+            return null;
+
+        var comboFamilies = FontFamilyComboBox.Items.Cast<FontFamily>();
+        FontFamily? directMatch = comboFamilies
+            .FirstOrDefault(f => string.Equals(f.Source, fontFamily.Source, StringComparison.OrdinalIgnoreCase));
+        if (directMatch != null)
+            return directMatch;
+
+        foreach (string candidate in EnumerateFontFamilyCandidates(fontFamily.Source))
+        {
+            FontFamily? candidateMatch = comboFamilies
+                .FirstOrDefault(f => string.Equals(f.Source, candidate, StringComparison.OrdinalIgnoreCase));
+            if (candidateMatch != null)
+                return candidateMatch;
+        }
+
+        foreach (string candidate in EnumerateFontFamilyCandidates(_styleConfiguration.BodyFontFamily))
+        {
+            FontFamily? candidateMatch = comboFamilies
+                .FirstOrDefault(f => string.Equals(f.Source, candidate, StringComparison.OrdinalIgnoreCase));
+            if (candidateMatch != null)
+                return candidateMatch;
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> EnumerateFontFamilyCandidates(string fontFamilySource)
+    {
+        return fontFamilySource
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(f => f.Trim().Trim('\'', '\"'))
+            .Where(f => !string.IsNullOrWhiteSpace(f));
     }
 
     private Color? ShowColorPicker(Color? initialColor)

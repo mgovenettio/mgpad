@@ -37,6 +37,8 @@ public enum DocumentType
     OpenDocument
 }
 
+internal readonly record struct ParsedNumber(decimal Value, int FractionDigits);
+
 public partial class MainWindow : Window
 {
     public static readonly RoutedUICommand ToggleBoldCommand =
@@ -925,8 +927,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        double sum = numbers.Sum();
-        string sumText = sum.ToString(CultureInfo.InvariantCulture);
+        decimal sum = numbers.Sum(number => number.Value);
+        int maxFractionDigits = numbers.Count > 0 ? numbers.Max(number => number.FractionDigits) : 0;
+        string sumText = sum.ToString($"F{maxFractionDigits}", CultureInfo.InvariantCulture);
         string insertionText = GetInsertionText(selectedText, sumText);
 
         var insertionPosition = EditorBox.Selection.End;
@@ -942,14 +945,24 @@ public partial class MainWindow : Window
         ScheduleMarkdownPreviewUpdate();
     }
 
-    private static List<double> ExtractNumbersFromSelection(string selectedText)
+    internal static List<ParsedNumber> ExtractNumbersFromSelection(string selectedText)
     {
-        var numbers = new List<double>();
+        var numbers = new List<ParsedNumber>();
 
         foreach (Match match in NumberRegex.Matches(selectedText))
         {
-            if (double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
-                numbers.Add(value);
+            if (decimal.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal value))
+            {
+                string matchValue = match.Value;
+                int exponentIndex = matchValue.IndexOfAny(new[] { 'e', 'E' });
+                string coefficient = exponentIndex >= 0 ? matchValue[..exponentIndex] : matchValue;
+                int decimalPointIndex = coefficient.IndexOf('.');
+                int fractionDigits = decimalPointIndex >= 0
+                    ? coefficient.Length - decimalPointIndex - 1
+                    : 0;
+
+                numbers.Add(new ParsedNumber(value, fractionDigits));
+            }
         }
 
         return numbers;

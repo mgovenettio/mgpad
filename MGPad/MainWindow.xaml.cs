@@ -105,9 +105,10 @@ public partial class MainWindow : Window
     private bool _isRecoveredDocument;
     private readonly List<string> _pendingRecoveryAutosavePaths = new();
     // Keep list indentation uniform across bullet, numbered, and lettered markers so the
-    // content column lines up regardless of the marker glyph width.
-    private static readonly Thickness ListIndentationMargin = new(18, 0, 0, 0);
-    private const double ListIndentationMarkerOffset = 18;
+    // content column lines up regardless of the marker glyph width. The marker offset is
+    // kept inside the list bounds so bullets are visible within the editor border padding.
+    private static readonly Thickness ListIndentationMargin = new(26, 0, 0, 0);
+    private const double ListIndentationMarkerOffset = 10;
     private static readonly Thickness ListIndentationPadding = new(0);
 
     private static readonly TimeSpan AutosaveInterval = TimeSpan.FromSeconds(60);

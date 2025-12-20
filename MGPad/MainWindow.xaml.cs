@@ -2968,12 +2968,12 @@ public partial class MainWindow : Window
         if (!normalizedText.StartsWith(prefixText, StringComparison.Ordinal))
             return false;
 
-        TextPointer? markerEnd = paragraph.ContentStart.GetPositionAtOffset(prefixText.Length);
+        TextPointer? markerEnd = GetTextPointerAtTextOffset(paragraph.ContentStart, prefixText.Length);
 
         if (markerEnd == null)
             return false;
 
-        int caretOffset = paragraph.ContentStart.GetOffsetToPosition(caret);
+        int caretOffset = new TextRange(paragraph.ContentStart, caret).Text.Length;
 
         new TextRange(paragraph.ContentStart, markerEnd).Text = string.Empty;
 
@@ -3002,11 +3002,38 @@ public partial class MainWindow : Window
             int adjustedOffset = caretOffset >= prefixText.Length
                 ? caretOffset - prefixText.Length
                 : 0;
-            TextPointer? adjustedCaret = paragraph.ContentStart.GetPositionAtOffset(adjustedOffset);
+            TextPointer? adjustedCaret = GetTextPointerAtTextOffset(paragraph.ContentStart, adjustedOffset);
             EditorBox.CaretPosition = adjustedCaret ?? listItem.ContentStart;
         }
         MarkDirty();
         return true;
+    }
+
+    private static TextPointer? GetTextPointerAtTextOffset(TextPointer start, int offset)
+    {
+        if (offset <= 0)
+            return start;
+
+        TextPointer? current = start;
+        int remaining = offset;
+
+        while (current != null && remaining > 0)
+        {
+            TextPointerContext context = current.GetPointerContext(LogicalDirection.Forward);
+            if (context == TextPointerContext.Text)
+            {
+                string text = current.GetTextInRun(LogicalDirection.Forward);
+                int advance = Math.Min(text.Length, remaining);
+                current = current.GetPositionAtOffset(advance, LogicalDirection.Forward);
+                remaining -= advance;
+            }
+            else
+            {
+                current = current.GetNextContextPosition(LogicalDirection.Forward);
+            }
+        }
+
+        return remaining == 0 ? current : null;
     }
 
     private bool HandleEnterInList()

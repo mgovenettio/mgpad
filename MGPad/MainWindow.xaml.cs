@@ -3490,7 +3490,11 @@ public partial class MainWindow : Window
             object sizeValue = selection.GetPropertyValue(Inline.FontSizeProperty);
             if (isSelectionEmpty && (sizeValue == DependencyProperty.UnsetValue || sizeValue is not double))
             {
-                sizeValue = EditorBox.CaretPosition?.GetPropertyValue(Inline.FontSizeProperty);
+                TextPointer? caret = EditorBox.CaretPosition;
+                if (caret != null)
+                {
+                    sizeValue = new TextRange(caret, caret).GetPropertyValue(Inline.FontSizeProperty);
+                }
             }
 
             double? selectionSize = sizeValue is double size ? size : null;
@@ -3830,7 +3834,8 @@ public partial class MainWindow : Window
             TextPointer? caretPosition = EditorBox.CaretPosition;
             if (caretPosition != null)
             {
-                object caretFamily = caretPosition.GetPropertyValue(Inline.FontFamilyProperty);
+                object caretFamily = new TextRange(caretPosition, caretPosition)
+                    .GetPropertyValue(Inline.FontFamilyProperty);
                 if (caretFamily is FontFamily caretFontFamily)
                     return caretFontFamily;
             }

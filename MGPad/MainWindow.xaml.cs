@@ -4234,7 +4234,7 @@ public partial class MainWindow : Window
             Brush? brush = control.Background;
             if (brush == null && control.Tag is string colorText)
             {
-                object? converted = ColorConverter.ConvertFromString(colorText);
+                object? converted = System.Windows.Media.ColorConverter.ConvertFromString(colorText);
                 if (converted is Color color)
                     brush = new SolidColorBrush(color);
             }

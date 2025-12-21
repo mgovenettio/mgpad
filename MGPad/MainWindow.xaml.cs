@@ -120,7 +120,7 @@ public partial class MainWindow : Window
         // choose the first installed face and fall back to later entries when characters (e.g.,
         // CJK glyphs) are missing.  This keeps Unicode-heavy notes readable without requiring
         // the exact font set from the authoring machine.
-        public string BodyFontFamily { get; init; } = "Segoe UI, 'Yu Gothic UI'";
+        public string BodyFontFamily { get; init; } = "Times New Roman, 'Yu Gothic UI'";
 
         // Monospaced stack favors Cascadia Code/Cascadia Mono, then Consolas, and finally MS
         // Gothic so code snippets remain aligned even on systems that only have Japanese-centric
@@ -490,7 +490,7 @@ public partial class MainWindow : Window
         string background = _isNightMode ? "#2d2d30" : "#ffffff";
         string foreground = _isNightMode ? "#f5f5f5" : "#000000";
 
-        string document = $"<!DOCTYPE html><html><head><meta charset=\"utf-8\" /><style>body {{ font-family: 'Segoe UI', 'Yu Gothic UI', sans-serif; padding: 12px; color: {foreground}; background: {background}; }} code, pre {{ font-family: 'Cascadia Code', Consolas, 'Courier New', monospace; }} pre {{ background: rgba(0,0,0,0.04); padding: 8px; overflow-x: auto; }} a {{ color: #0066cc; }}</style></head><body>{html}</body></html>";
+        string document = $"<!DOCTYPE html><html><head><meta charset=\"utf-8\" /><style>body {{ font-family: {_styleConfiguration.BodyFontFamily}, serif; padding: 12px; color: {foreground}; background: {background}; }} code, pre {{ font-family: 'Cascadia Code', Consolas, 'Courier New', monospace; }} pre {{ background: rgba(0,0,0,0.04); padding: 8px; overflow-x: auto; }} a {{ color: #0066cc; }}</style></head><body>{html}</body></html>";
 
         MarkdownPreviewBrowser.NavigateToString(document);
     }

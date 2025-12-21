@@ -3566,7 +3566,18 @@ public partial class MainWindow : Window
         if (EditorBox == null || !CanFormat())
             return;
 
-        ApplyPropertyToSelectionOrCaret(Inline.FontFamilyProperty, fontFamily);
+        if (ShouldUpdateDocumentFormattingDefault(Inline.FontFamilyProperty))
+        {
+            if (EditorBox.Document != null)
+            {
+                EditorBox.Document.FontFamily = fontFamily;
+            }
+        }
+        else
+        {
+            ApplyPropertyToSelectionOrCaret(Inline.FontFamilyProperty, fontFamily);
+        }
+
         _lastKnownFontFamily = fontFamily;
         UpdateFontControlsSelection(fontFamily, null);
     }
@@ -3577,9 +3588,41 @@ public partial class MainWindow : Window
             return;
 
         double clampedSize = Math.Min(MaxFontSize, Math.Max(MinFontSize, fontSize));
-        ApplyPropertyToSelectionOrCaret(Inline.FontSizeProperty, clampedSize);
+        if (ShouldUpdateDocumentFormattingDefault(Inline.FontSizeProperty))
+        {
+            if (EditorBox.Document != null)
+            {
+                EditorBox.Document.FontSize = clampedSize;
+            }
+        }
+        else
+        {
+            ApplyPropertyToSelectionOrCaret(Inline.FontSizeProperty, clampedSize);
+        }
+
         _lastKnownFontSize = clampedSize;
         UpdateFontControlsSelection(null, clampedSize);
+    }
+
+    private bool ShouldUpdateDocumentFormattingDefault(DependencyProperty property)
+    {
+        if (EditorBox == null)
+            return false;
+
+        TextSelection selection = EditorBox.Selection;
+        if (!selection.IsEmpty)
+            return false;
+
+        object selectionValue = selection.GetPropertyValue(property);
+        if (selectionValue != DependencyProperty.UnsetValue)
+            return false;
+
+        TextPointer? caret = EditorBox.CaretPosition;
+        if (caret == null)
+            return false;
+
+        object caretValue = new TextRange(caret, caret).GetPropertyValue(property);
+        return caretValue == DependencyProperty.UnsetValue;
     }
 
     private void ApplyPropertyToSelectionOrCaret(DependencyProperty property, object value)

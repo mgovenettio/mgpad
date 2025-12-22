@@ -874,13 +874,14 @@ public partial class MainWindow : Window
         if (EditorBox == null)
             return;
 
-        string timestamp = DateTime.Now.ToString("dddd, MMMM d, yyyy h:mm tt");
+        string timestamp = DateTime.Now.ToString("h:mm tt") + ": ";
 
         TextRange selection = EditorBox.Selection;
 
         if (!selection.IsEmpty)
         {
             selection.Text = timestamp;
+            selection.ApplyPropertyValue(Inline.FontWeightProperty, FontWeights.Bold);
             EditorBox.CaretPosition = selection.End;
         }
         else
@@ -892,6 +893,7 @@ public partial class MainWindow : Window
 
             selection = new TextRange(caret, caret);
             selection.Text = timestamp;
+            selection.ApplyPropertyValue(Inline.FontWeightProperty, FontWeights.Bold);
 
             EditorBox.CaretPosition = selection.End;
         }

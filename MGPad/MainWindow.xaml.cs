@@ -3355,18 +3355,21 @@ public partial class MainWindow : Window
             var suggestionItem = new MenuItem
             {
                 Header = suggestion,
+                Command = EditingCommands.CorrectSpellingError,
+                CommandTarget = EditorBox,
+                CommandParameter = suggestion,
                 Tag = SpellCheckContextMenuTag
             };
-            suggestionItem.Click += (_, _) => spellingError.Correct(suggestion);
             insertItems.Add(suggestionItem);
         }
 
         var ignoreItem = new MenuItem
         {
             Header = "Ignore",
+            Command = EditingCommands.IgnoreSpellingError,
+            CommandTarget = EditorBox,
             Tag = SpellCheckContextMenuTag
         };
-        ignoreItem.Click += (_, _) => spellingError.IgnoreAll();
         insertItems.Add(ignoreItem);
 
         var addToDictionaryItem = new MenuItem
@@ -3376,7 +3379,8 @@ public partial class MainWindow : Window
         };
         addToDictionaryItem.Click += (_, _) =>
         {
-            AddWordToCustomDictionary(spellingError.Text);
+            var errorRange = new TextRange(spellingError.Start, spellingError.End);
+            AddWordToCustomDictionary(errorRange.Text);
             ReloadCustomDictionary();
         };
         insertItems.Add(addToDictionaryItem);

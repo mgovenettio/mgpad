@@ -3046,6 +3046,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if ((InputMethod.GetIsInputMethodEnabled(EditorBox) && InputMethod.Current?.ImeState == ImeState.On)
+            || (EditorBox.IsKeyboardFocused && EditorBox.IsReadOnlyCaretVisible))
+        {
+            return;
+        }
+
         var paragraph = _pendingSpellcheckParagraph;
         _pendingSpellcheckParagraph = null;
 
@@ -3053,6 +3059,11 @@ public partial class MainWindow : Window
         {
             return;
         }
+
+        var caretPosition = EditorBox.CaretPosition;
+        var selectionStart = EditorBox.Selection?.Start;
+        var selectionEnd = EditorBox.Selection?.End;
+        var documentStart = EditorBox.Document.ContentStart;
 
         _isProcessingSpellcheckParagraphs = true;
         EditorBox.BeginChange();
@@ -3063,6 +3074,19 @@ public partial class MainWindow : Window
         finally
         {
             EditorBox.EndChange();
+            if (caretPosition != null && caretPosition.IsInSameDocument(documentStart))
+            {
+                EditorBox.CaretPosition = caretPosition;
+            }
+
+            if (selectionStart != null
+                && selectionEnd != null
+                && selectionStart.IsInSameDocument(documentStart)
+                && selectionEnd.IsInSameDocument(documentStart))
+            {
+                EditorBox.Selection.Select(selectionStart, selectionEnd);
+            }
+
             _isProcessingSpellcheckParagraphs = false;
         }
     }
@@ -3235,14 +3259,29 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (insertionPosition.GetPointerContext(LogicalDirection.Forward) == TextPointerContext.ElementStart
+            && insertionPosition.GetAdjacentElement(LogicalDirection.Forward) is Run adjacentRun
+            && insertionPosition.CompareTo(adjacentRun.ContentStart) == 0)
+        {
+            return;
+        }
+
         if (insertionPosition.CompareTo(run.ContentStart) <= 0
             || insertionPosition.CompareTo(run.ContentEnd) >= 0)
         {
             return;
         }
 
-        var beforeText = new TextRange(run.ContentStart, insertionPosition).Text;
-        var afterText = new TextRange(insertionPosition, run.ContentEnd).Text;
+        var offset = run.ContentStart.GetOffsetToPosition(insertionPosition);
+        var runText = run.Text;
+
+        if (offset <= 0 || offset >= runText.Length)
+        {
+            return;
+        }
+
+        var beforeText = runText.Substring(0, offset);
+        var afterText = runText.Substring(offset);
 
         if (string.IsNullOrEmpty(afterText))
         {

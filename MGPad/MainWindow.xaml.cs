@@ -8,6 +8,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -69,6 +70,10 @@ public partial class MainWindow : Window
         new RoutedUICommand("InsertTimestamp", "InsertTimestamp", typeof(MainWindow),
             new InputGestureCollection { new KeyGesture(Key.T, ModifierKeys.Alt | ModifierKeys.Shift) });
 
+    public static readonly DependencyProperty IsSpellCheckEnabledProperty =
+        DependencyProperty.Register(nameof(IsSpellCheckEnabled), typeof(bool), typeof(MainWindow),
+            new PropertyMetadata(true, OnIsSpellCheckEnabledChanged));
+
     private string? _currentFilePath;
     private DocumentType _currentDocumentType;
     private DocumentType _previousDocumentType = DocumentType.RichText;
@@ -87,10 +92,12 @@ public partial class MainWindow : Window
     private const int MaxRecentDocuments = 10;
     private readonly List<string> _recentDocuments = new();
     private readonly string _recentDocumentsFilePath;
+    private readonly string _settingsFilePath;
     private readonly DispatcherTimer _markdownPreviewTimer;
     private CultureInfo? _englishInputLanguage;
     private CultureInfo? _japaneseInputLanguage;
     private bool _isUpdatingFontControls;
+    private bool _isLoadingSettings;
     private readonly double[] _defaultFontSizes = new double[]
         { 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72 };
     private WpfTextBox? _fontSizeEditableTextBox;
@@ -159,6 +166,11 @@ public partial class MainWindow : Window
         public XFont Font { get; set; } = null!;
     }
 
+    private sealed class UserSettings
+    {
+        public bool IsSpellCheckEnabled { get; set; } = true;
+    }
+
     private const string HelpText =
         "MGPad quick help:\n" +
         "\n" +
@@ -169,6 +181,12 @@ public partial class MainWindow : Window
         "• Toggle JP/EN switches input language when both are available.\n" +
         "• Use the zoom controls in the status bar to adjust text size.";
 
+    public bool IsSpellCheckEnabled
+    {
+        get => (bool)GetValue(IsSpellCheckEnabledProperty);
+        set => SetValue(IsSpellCheckEnabledProperty, value);
+    }
+
     public MainWindow(RecoveryItem? recoveryItem = null)
     {
         InitializeComponent();
@@ -176,6 +194,11 @@ public partial class MainWindow : Window
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "MGPad",
             "recent-documents.txt");
+        _settingsFilePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MGPad",
+            "settings.json");
+        LoadUserSettings();
         _markdownPipeline = new MarkdownPipelineBuilder()
             .UseAdvancedExtensions()
             .DisableHtml()
@@ -1173,6 +1196,76 @@ public partial class MainWindow : Window
         }
 
         return builder.ToString();
+    }
+
+    private static void OnIsSpellCheckEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is MainWindow window)
+        {
+            window.OnSpellCheckEnabledChanged();
+        }
+    }
+
+    private void OnSpellCheckEnabledChanged()
+    {
+        if (_isLoadingSettings)
+        {
+            return;
+        }
+
+        SaveUserSettings();
+    }
+
+    private void LoadUserSettings()
+    {
+        var settings = new UserSettings();
+
+        try
+        {
+            if (File.Exists(_settingsFilePath))
+            {
+                settings = JsonSerializer.Deserialize<UserSettings>(File.ReadAllText(_settingsFilePath)) ?? settings;
+            }
+        }
+        catch
+        {
+            // Ignore settings load failures to avoid blocking startup.
+        }
+
+        _isLoadingSettings = true;
+        try
+        {
+            SetCurrentValue(IsSpellCheckEnabledProperty, settings.IsSpellCheckEnabled);
+        }
+        finally
+        {
+            _isLoadingSettings = false;
+        }
+    }
+
+    private void SaveUserSettings()
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(_settingsFilePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var settings = new UserSettings
+            {
+                IsSpellCheckEnabled = IsSpellCheckEnabled
+            };
+            File.WriteAllText(_settingsFilePath, JsonSerializer.Serialize(settings, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }));
+        }
+        catch
+        {
+            // Ignore settings save failures to avoid interrupting the user.
+        }
     }
 
     private void UpdateStatusBar()

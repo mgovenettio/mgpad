@@ -101,6 +101,10 @@
                           Header="_Markdown Mode"
                           IsCheckable="true"
                           Click="MarkdownModeMenuItem_Click" />
+                <MenuItem x:Name="SpellCheckToggleMenuItem"
+                          Header="Spellcheck On/Off"
+                          IsCheckable="true"
+                          IsChecked="{Binding IsSpellCheckEnabled, Mode=TwoWay, RelativeSource={RelativeSource AncestorType=Window}}" />
             </MenuItem>
             <MenuItem Header="F_ormat">
                 <MenuItem x:Name="NumberedListMenuItem"
@@ -295,6 +299,7 @@
                              Grid.Column="0"
                              VerticalScrollBarVisibility="Auto"
                              AcceptsTab="True"
+                             SpellCheck.IsEnabled="{Binding IsSpellCheckEnabled, RelativeSource={RelativeSource AncestorType=Window}}"
                              PreviewKeyDown="EditorBox_PreviewKeyDown"
                              TextChanged="EditorBox_TextChanged">
                     <RichTextBox.InputBindings>

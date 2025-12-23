@@ -3339,7 +3339,7 @@ public partial class MainWindow : Window
             ?? EditorBox.CaretPosition;
         var spellingError = pointer == null
             ? null
-            : SpellCheck.GetSpellingError(pointer);
+            : EditorBox.GetSpellingError(pointer);
 
         if (spellingError == null)
         {

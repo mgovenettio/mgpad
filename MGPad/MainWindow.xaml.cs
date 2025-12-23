@@ -1870,7 +1870,7 @@ public partial class MainWindow : Window
         double y = marginTop;
         foreach (var paragraph in paragraphs)
         {
-            double usableWidth = page.Width - marginLeft - marginRight;
+            double usableWidth = page.Width.Point - marginLeft - marginRight;
 
             var wrappedLines = WrapParagraphRuns(
                 paragraph.Runs,
@@ -1884,7 +1884,7 @@ public partial class MainWindow : Window
             {
                 double lineHeight = GetLineHeight(line, gfx, lineSpacingFactor, regularFont);
 
-                if (y + lineHeight > page.Height - marginBottom)
+                if (y + lineHeight > page.Height.Point - marginBottom)
                 {
                     // New page
                     page = document.AddPage();

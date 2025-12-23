@@ -3337,7 +3337,9 @@ public partial class MainWindow : Window
 
         var pointer = EditorBox.GetPositionFromPoint(Mouse.GetPosition(EditorBox), true)
             ?? EditorBox.CaretPosition;
-        var spellingError = pointer?.GetSpellingError();
+        var spellingError = pointer == null
+            ? null
+            : SpellCheck.GetSpellingError(pointer);
 
         if (spellingError == null)
         {

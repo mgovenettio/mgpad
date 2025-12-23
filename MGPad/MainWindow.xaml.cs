@@ -3572,9 +3572,10 @@ public partial class MainWindow : Window
         if (markerEnd == null)
             return false;
 
-        int caretOffset = new TextRange(paragraph.ContentStart, caret).Text.Length;
+        int markerOffset = paragraph.ContentStart.GetOffsetToPosition(markerEnd);
+        int caretOffset = paragraph.ContentStart.GetOffsetToPosition(caret);
 
-        new TextRange(paragraph.ContentStart, markerEnd).Text = string.Empty;
+        RemoveTextInRange(paragraph.ContentStart, markerEnd);
 
         List list = CreateList(markerStyle);
 
@@ -3598,8 +3599,8 @@ public partial class MainWindow : Window
         }
         else
         {
-            int adjustedOffset = caretOffset >= prefixText.Length
-                ? caretOffset - prefixText.Length
+            int adjustedOffset = caretOffset >= markerOffset
+                ? caretOffset - markerOffset
                 : 0;
             TextPointer? adjustedCaret = GetTextPointerAtTextOffset(paragraph.ContentStart, adjustedOffset);
             EditorBox.CaretPosition = adjustedCaret ?? listItem.ContentStart;
@@ -3633,6 +3634,55 @@ public partial class MainWindow : Window
         }
 
         return remaining == 0 ? current : null;
+    }
+
+    private static void RemoveTextInRange(TextPointer start, TextPointer end)
+    {
+        if (start.CompareTo(end) >= 0)
+            return;
+
+        TextPointer? current = start;
+
+        while (current != null && current.CompareTo(end) < 0)
+        {
+            TextPointerContext context = current.GetPointerContext(LogicalDirection.Forward);
+            if (context == TextPointerContext.Text)
+            {
+                Run? run = current.Parent as Run;
+                if (run == null)
+                {
+                    current = current.GetNextContextPosition(LogicalDirection.Forward);
+                    continue;
+                }
+
+                string runText = current.GetTextInRun(LogicalDirection.Forward);
+                TextPointer? runEnd = current.GetPositionAtOffset(runText.Length, LogicalDirection.Forward);
+                TextPointer segmentEnd = runEnd != null && runEnd.CompareTo(end) > 0 ? end : runEnd ?? end;
+
+                if (segmentEnd.CompareTo(current) == 0)
+                {
+                    current = current.GetNextContextPosition(LogicalDirection.Forward);
+                    continue;
+                }
+
+                int startOffset = run.ContentStart.GetOffsetToPosition(current);
+                int endOffset = run.ContentStart.GetOffsetToPosition(segmentEnd);
+                int removeLength = Math.Max(0, endOffset - startOffset);
+
+                if (removeLength > 0 && startOffset >= 0 && startOffset < run.Text.Length)
+                {
+                    int safeLength = Math.Min(removeLength, run.Text.Length - startOffset);
+                    if (safeLength > 0)
+                        run.Text = run.Text.Remove(startOffset, safeLength);
+                }
+
+                current = segmentEnd;
+            }
+            else
+            {
+                current = current.GetNextContextPosition(LogicalDirection.Forward);
+            }
+        }
     }
 
     private bool HandleEnterInList()

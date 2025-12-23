@@ -300,6 +300,7 @@
                              VerticalScrollBarVisibility="Auto"
                              AcceptsTab="True"
                              SpellCheck.IsEnabled="{Binding IsSpellCheckEnabled, RelativeSource={RelativeSource AncestorType=Window}}"
+                             ContextMenuOpening="EditorBox_ContextMenuOpening"
                              PreviewKeyDown="EditorBox_PreviewKeyDown"
                              TextChanged="EditorBox_TextChanged">
                     <RichTextBox.InputBindings>

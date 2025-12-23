@@ -117,6 +117,7 @@ public partial class MainWindow : Window
     private static readonly Thickness ListIndentationMargin = new(26, 0, 0, 0);
     private const double ListIndentationMarkerOffset = 10;
     private static readonly Thickness ListIndentationPadding = new(0);
+    private static readonly object SpellCheckContextMenuTag = new();
 
     private static readonly TimeSpan AutosaveInterval = TimeSpan.FromSeconds(60);
 
@@ -2923,6 +2924,79 @@ public partial class MainWindow : Window
         {
             if (HandleBackspaceAtListStart())
                 e.Handled = true;
+        }
+    }
+
+    private void EditorBox_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (EditorBox?.ContextMenu == null)
+        {
+            return;
+        }
+
+        var contextMenu = EditorBox.ContextMenu;
+
+        for (int i = contextMenu.Items.Count - 1; i >= 0; i--)
+        {
+            if (contextMenu.Items[i] is FrameworkElement element
+                && ReferenceEquals(element.Tag, SpellCheckContextMenuTag))
+            {
+                contextMenu.Items.RemoveAt(i);
+            }
+        }
+
+        if (!IsSpellCheckEnabled || !EditorBox.SpellCheck.IsEnabled)
+        {
+            return;
+        }
+
+        var pointer = EditorBox.GetPositionFromPoint(Mouse.GetPosition(EditorBox), true)
+            ?? EditorBox.CaretPosition;
+        var spellingError = SpellCheck.GetSpellingError(pointer);
+
+        if (spellingError == null)
+        {
+            return;
+        }
+
+        var suggestions = spellingError.Suggestions?.Cast<string>().Take(8).ToList()
+            ?? new List<string>();
+        var insertItems = new List<Control>(suggestions.Count + 3);
+
+        foreach (var suggestion in suggestions)
+        {
+            var suggestionItem = new MenuItem
+            {
+                Header = suggestion,
+                Tag = SpellCheckContextMenuTag
+            };
+            suggestionItem.Click += (_, _) => spellingError.Correct(suggestion);
+            insertItems.Add(suggestionItem);
+        }
+
+        var ignoreItem = new MenuItem
+        {
+            Header = "Ignore",
+            Tag = SpellCheckContextMenuTag
+        };
+        ignoreItem.Click += (_, _) => spellingError.IgnoreAll();
+        insertItems.Add(ignoreItem);
+
+        var addToDictionaryItem = new MenuItem
+        {
+            Header = "Add to Dictionary",
+            Tag = SpellCheckContextMenuTag
+        };
+        addToDictionaryItem.Click += (_, _) => spellingError.AddToDictionary();
+        insertItems.Add(addToDictionaryItem);
+
+        insertItems.Add(new Separator { Tag = SpellCheckContextMenuTag });
+
+        var insertIndex = 0;
+        foreach (var item in insertItems)
+        {
+            contextMenu.Items.Insert(insertIndex, item);
+            insertIndex++;
         }
     }
 

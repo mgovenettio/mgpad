@@ -93,6 +93,7 @@ public partial class MainWindow : Window
     private readonly List<string> _recentDocuments = new();
     private readonly string _recentDocumentsFilePath;
     private readonly string _settingsFilePath;
+    private readonly string _customDictionaryPath;
     private readonly DispatcherTimer _markdownPreviewTimer;
     private CultureInfo? _englishInputLanguage;
     private CultureInfo? _japaneseInputLanguage;
@@ -199,7 +200,12 @@ public partial class MainWindow : Window
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "MGPad",
             "settings.json");
+        _customDictionaryPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MGPad",
+            "custom-dictionary.txt");
         LoadUserSettings();
+        ConfigureCustomDictionary();
         _markdownPipeline = new MarkdownPipelineBuilder()
             .UseAdvancedExtensions()
             .DisableHtml()
@@ -1209,12 +1215,86 @@ public partial class MainWindow : Window
 
     private void OnSpellCheckEnabledChanged()
     {
-        if (_isLoadingSettings)
+        if (!_isLoadingSettings)
+        {
+            SaveUserSettings();
+        }
+
+        ConfigureCustomDictionary();
+    }
+
+    private void ConfigureCustomDictionary()
+    {
+        if (EditorBox == null)
         {
             return;
         }
 
-        SaveUserSettings();
+        if (!IsSpellCheckEnabled || !EditorBox.SpellCheck.IsEnabled)
+        {
+            EditorBox.SpellCheck.CustomDictionaries.Clear();
+            return;
+        }
+
+        EnsureCustomDictionaryFileExists();
+        ReloadCustomDictionary();
+    }
+
+    private void EnsureCustomDictionaryFileExists()
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(_customDictionaryPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            if (!File.Exists(_customDictionaryPath))
+            {
+                File.WriteAllText(_customDictionaryPath, string.Empty);
+            }
+        }
+        catch
+        {
+            // Ignore custom dictionary failures to avoid interrupting the user.
+        }
+    }
+
+    private void ReloadCustomDictionary()
+    {
+        if (EditorBox == null || !IsSpellCheckEnabled || !EditorBox.SpellCheck.IsEnabled)
+        {
+            return;
+        }
+
+        try
+        {
+            EditorBox.SpellCheck.CustomDictionaries.Clear();
+            EditorBox.SpellCheck.CustomDictionaries.Add(new Uri(_customDictionaryPath, UriKind.Absolute));
+        }
+        catch
+        {
+            // Ignore custom dictionary failures to avoid interrupting the user.
+        }
+    }
+
+    private void AddWordToCustomDictionary(string? word)
+    {
+        if (string.IsNullOrWhiteSpace(word))
+        {
+            return;
+        }
+
+        try
+        {
+            EnsureCustomDictionaryFileExists();
+            File.AppendAllLines(_customDictionaryPath, new[] { word.Trim() });
+        }
+        catch
+        {
+            // Ignore custom dictionary failures to avoid interrupting the user.
+        }
     }
 
     private void LoadUserSettings()
@@ -2987,7 +3067,11 @@ public partial class MainWindow : Window
             Header = "Add to Dictionary",
             Tag = SpellCheckContextMenuTag
         };
-        addToDictionaryItem.Click += (_, _) => spellingError.AddToDictionary();
+        addToDictionaryItem.Click += (_, _) =>
+        {
+            AddWordToCustomDictionary(spellingError.Text);
+            ReloadCustomDictionary();
+        };
         insertItems.Add(addToDictionaryItem);
 
         insertItems.Add(new Separator { Tag = SpellCheckContextMenuTag });

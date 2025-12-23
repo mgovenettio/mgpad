@@ -112,6 +112,9 @@ public partial class MainWindow : Window
     private Guid _untitledDocumentId = Guid.NewGuid();
     private bool _isRecoveredDocument;
     private readonly List<string> _pendingRecoveryAutosavePaths = new();
+    private readonly DispatcherTimer _paragraphSpellcheckTimer;
+    private readonly HashSet<Paragraph> _pendingSpellcheckParagraphs = new();
+    private bool _isProcessingSpellcheckParagraphs;
     // Keep list indentation uniform across bullet, numbered, and lettered markers so the
     // content column lines up regardless of the marker glyph width. The marker offset is
     // kept inside the list bounds so bullets are visible within the editor border padding.
@@ -119,6 +122,9 @@ public partial class MainWindow : Window
     private const double ListIndentationMarkerOffset = 10;
     private static readonly Thickness ListIndentationPadding = new(0);
     private static readonly object SpellCheckContextMenuTag = new();
+    private static readonly Regex EnglishTokenRegex = new("^[A-Za-z]+(?:'[A-Za-z]+)*$",
+        RegexOptions.Compiled);
+    private static readonly Regex TokenRegex = new("\\S+", RegexOptions.Compiled);
 
     private static readonly TimeSpan AutosaveInterval = TimeSpan.FromSeconds(60);
 
@@ -223,6 +229,15 @@ public partial class MainWindow : Window
         {
             _markdownPreviewTimer.Stop();
             UpdateMarkdownPreview();
+        };
+        _paragraphSpellcheckTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(200)
+        };
+        _paragraphSpellcheckTimer.Tick += (s, e) =>
+        {
+            _paragraphSpellcheckTimer.Stop();
+            ProcessPendingSpellcheckParagraphs();
         };
         InputLanguageManager.Current.InputLanguageChanged += InputLanguageManager_InputLanguageChanged;
         CommandBindings.Add(new CommandBinding(ToggleBoldCommand,
@@ -2971,6 +2986,235 @@ public partial class MainWindow : Window
 
         MarkDirty();
         ScheduleMarkdownPreviewUpdate();
+        ScheduleParagraphSpellcheck(e);
+    }
+
+    private void ScheduleParagraphSpellcheck(TextChangedEventArgs e)
+    {
+        if (_isProcessingSpellcheckParagraphs || EditorBox?.Document == null)
+        {
+            return;
+        }
+
+        if (!IsSpellCheckEnabled || !EditorBox.SpellCheck.IsEnabled)
+        {
+            _pendingSpellcheckParagraphs.Clear();
+            return;
+        }
+
+        AddPendingParagraph(EditorBox.CaretPosition?.Paragraph);
+
+        var documentStart = EditorBox.Document.ContentStart;
+        foreach (var change in e.Changes)
+        {
+            var changeStart = GetTextPointerAtOffset(documentStart, change.Offset);
+            var changeEnd = GetTextPointerAtOffset(
+                documentStart,
+                change.Offset + Math.Max(change.AddedLength, change.RemovedLength));
+
+            AddPendingParagraph(changeStart?.Paragraph);
+            AddPendingParagraph(changeEnd?.Paragraph);
+        }
+
+        if (_pendingSpellcheckParagraphs.Count > 0)
+        {
+            _paragraphSpellcheckTimer.Stop();
+            _paragraphSpellcheckTimer.Start();
+        }
+    }
+
+    private void AddPendingParagraph(Paragraph? paragraph)
+    {
+        if (paragraph != null)
+        {
+            _pendingSpellcheckParagraphs.Add(paragraph);
+        }
+    }
+
+    private void ProcessPendingSpellcheckParagraphs()
+    {
+        if (_isProcessingSpellcheckParagraphs || EditorBox?.Document == null)
+        {
+            return;
+        }
+
+        if (!IsSpellCheckEnabled || !EditorBox.SpellCheck.IsEnabled)
+        {
+            _pendingSpellcheckParagraphs.Clear();
+            return;
+        }
+
+        if (_pendingSpellcheckParagraphs.Count == 0)
+        {
+            return;
+        }
+
+        var paragraphs = _pendingSpellcheckParagraphs.ToArray();
+        _pendingSpellcheckParagraphs.Clear();
+
+        _isProcessingSpellcheckParagraphs = true;
+        EditorBox.BeginChange();
+        try
+        {
+            foreach (var paragraph in paragraphs)
+            {
+                ApplySpellCheckToParagraph(paragraph);
+            }
+        }
+        finally
+        {
+            EditorBox.EndChange();
+            _isProcessingSpellcheckParagraphs = false;
+        }
+    }
+
+    private void ApplySpellCheckToParagraph(Paragraph paragraph)
+    {
+        var paragraphRange = new TextRange(paragraph.ContentStart, paragraph.ContentEnd);
+        var paragraphText = paragraphRange.Text;
+
+        if (string.IsNullOrWhiteSpace(paragraphText))
+        {
+            return;
+        }
+
+        foreach (Match match in TokenRegex.Matches(paragraphText))
+        {
+            var token = match.Value;
+            var isEnglish = EnglishTokenRegex.IsMatch(token);
+
+            var tokenStart = GetTextPointerAtOffset(paragraph.ContentStart, match.Index);
+            var tokenEnd = GetTextPointerAtOffset(paragraph.ContentStart, match.Index + match.Length);
+
+            if (tokenStart == null || tokenEnd == null)
+            {
+                continue;
+            }
+
+            SplitRunAtPosition(tokenStart);
+            SplitRunAtPosition(tokenEnd);
+
+            foreach (var run in EnumerateRuns(tokenStart, tokenEnd))
+            {
+                if (isEnglish)
+                {
+                    run.ClearValue(SpellCheck.IsEnabledProperty);
+                }
+                else
+                {
+                    run.SetValue(SpellCheck.IsEnabledProperty, false);
+                }
+            }
+        }
+    }
+
+    private static TextPointer? GetTextPointerAtOffset(TextPointer start, int offset)
+    {
+        if (offset <= 0)
+        {
+            return start;
+        }
+
+        var navigator = start;
+        var remaining = offset;
+
+        while (navigator != null)
+        {
+            if (navigator.GetPointerContext(LogicalDirection.Forward) == TextPointerContext.Text)
+            {
+                var textRun = navigator.GetTextInRun(LogicalDirection.Forward);
+                if (textRun.Length >= remaining)
+                {
+                    return navigator.GetPositionAtOffset(remaining, LogicalDirection.Forward);
+                }
+
+                remaining -= textRun.Length;
+                navigator = navigator.GetPositionAtOffset(textRun.Length, LogicalDirection.Forward);
+                continue;
+            }
+
+            navigator = navigator.GetNextContextPosition(LogicalDirection.Forward);
+            if (remaining == 0)
+            {
+                return navigator;
+            }
+        }
+
+        return null;
+    }
+
+    private static InlineCollection? GetInlineCollection(Inline inline)
+    {
+        return inline.Parent switch
+        {
+            Paragraph paragraph => paragraph.Inlines,
+            Span span => span.Inlines,
+            _ => null
+        };
+    }
+
+    private static Run CloneRunWithText(Run source, string text)
+    {
+        var clone = new Run(text);
+        var localValues = source.GetLocalValueEnumerator();
+        while (localValues.MoveNext())
+        {
+            var entry = localValues.Current;
+            clone.SetValue(entry.Property, entry.Value);
+        }
+
+        return clone;
+    }
+
+    private static void SplitRunAtPosition(TextPointer position)
+    {
+        var insertionPosition = position.GetInsertionPosition(LogicalDirection.Forward);
+        if (insertionPosition?.Parent is not Run run)
+        {
+            return;
+        }
+
+        if (insertionPosition.CompareTo(run.ContentStart) <= 0
+            || insertionPosition.CompareTo(run.ContentEnd) >= 0)
+        {
+            return;
+        }
+
+        var beforeText = new TextRange(run.ContentStart, insertionPosition).Text;
+        var afterText = new TextRange(insertionPosition, run.ContentEnd).Text;
+
+        if (string.IsNullOrEmpty(afterText))
+        {
+            return;
+        }
+
+        var newRun = CloneRunWithText(run, afterText);
+        run.Text = beforeText;
+
+        var collection = GetInlineCollection(run);
+        collection?.InsertAfter(run, newRun);
+    }
+
+    private static IEnumerable<Run> EnumerateRuns(TextPointer start, TextPointer end)
+    {
+        var navigator = start;
+        while (navigator != null && navigator.CompareTo(end) < 0)
+        {
+            if (navigator.GetPointerContext(LogicalDirection.Forward) == TextPointerContext.ElementStart
+                && navigator.GetAdjacentElement(LogicalDirection.Forward) is Run run)
+            {
+                if (run.ContentStart.CompareTo(end) >= 0)
+                {
+                    yield break;
+                }
+
+                yield return run;
+                navigator = run.ContentEnd;
+                continue;
+            }
+
+            navigator = navigator.GetNextContextPosition(LogicalDirection.Forward);
+        }
     }
 
     private void EditorBox_PreviewKeyDown(object sender, KeyEventArgs e)

@@ -3346,7 +3346,7 @@ public partial class MainWindow : Window
 
         var suggestions = spellingError.Suggestions?.Cast<string>().Take(8).ToList()
             ?? new List<string>();
-        var insertItems = new List<Control>(suggestions.Count + 3);
+        var insertItems = new List<FrameworkElement>(suggestions.Count + 3);
 
         foreach (var suggestion in suggestions)
         {

@@ -3048,9 +3048,7 @@ public partial class MainWindow : Window
         if (currentItem == null)
             return false;
 
-        string itemText = new TextRange(currentItem.ContentStart, currentItem.ContentEnd).Text;
-
-        if (string.IsNullOrWhiteSpace(itemText))
+        if (IsListItemEmpty(currentItem))
         {
             return ExitListFromItem(currentItem);
         }
@@ -3069,6 +3067,44 @@ public partial class MainWindow : Window
         EditorBox.CaretPosition = newParagraph.ContentStart;
         MarkDirty();
         return true;
+    }
+
+    private static bool IsListItemEmpty(ListItem currentItem)
+    {
+        string itemText = new TextRange(currentItem.ContentStart, currentItem.ContentEnd).Text;
+        if (!string.IsNullOrWhiteSpace(itemText))
+            return false;
+
+        List<Block> blocks = currentItem.Blocks.ToList();
+        if (blocks.Count != 1 || blocks[0] is not Paragraph paragraph)
+            return false;
+
+        if (paragraph.Inlines.Count == 0)
+            return true;
+
+        return !InlineHasNonWhitespaceText(paragraph.Inlines);
+    }
+
+    private static bool InlineHasNonWhitespaceText(InlineCollection inlines)
+    {
+        foreach (Inline inline in inlines)
+        {
+            switch (inline)
+            {
+                case Run run:
+                    if (!string.IsNullOrWhiteSpace(run.Text))
+                        return true;
+                    break;
+                case Span span:
+                    if (InlineHasNonWhitespaceText(span.Inlines))
+                        return true;
+                    break;
+                default:
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     private bool ExitListFromItem(ListItem currentItem)

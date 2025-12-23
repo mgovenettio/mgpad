@@ -113,7 +113,9 @@ public partial class MainWindow : Window
     private bool _isRecoveredDocument;
     private readonly List<string> _pendingRecoveryAutosavePaths = new();
     private readonly DispatcherTimer _paragraphSpellcheckTimer;
-    private readonly HashSet<Paragraph> _pendingSpellcheckParagraphs = new();
+    private Paragraph? _pendingSpellcheckParagraph;
+    private Paragraph? _lastSpellcheckedParagraph;
+    private string? _lastSpellcheckedParagraphText;
     private bool _isProcessingSpellcheckParagraphs;
     // Keep list indentation uniform across bullet, numbered, and lettered markers so the
     // content column lines up regardless of the marker glyph width. The marker offset is
@@ -122,10 +124,6 @@ public partial class MainWindow : Window
     private const double ListIndentationMarkerOffset = 10;
     private static readonly Thickness ListIndentationPadding = new(0);
     private static readonly object SpellCheckContextMenuTag = new();
-    private static readonly Regex EnglishTokenRegex = new("^[A-Za-z]+(?:'[A-Za-z]+)*$",
-        RegexOptions.Compiled);
-    private static readonly Regex TokenRegex = new("\\S+", RegexOptions.Compiled);
-
     private static readonly TimeSpan AutosaveInterval = TimeSpan.FromSeconds(60);
 
     private sealed class StyleConfiguration
@@ -2998,11 +2996,28 @@ public partial class MainWindow : Window
 
         if (!IsSpellCheckEnabled || !EditorBox.SpellCheck.IsEnabled)
         {
-            _pendingSpellcheckParagraphs.Clear();
+            _pendingSpellcheckParagraph = null;
             return;
         }
 
-        AddPendingParagraph(EditorBox.CaretPosition?.Paragraph);
+        var paragraph = EditorBox.CaretPosition?.Paragraph
+            ?? GetParagraphFromChanges(e);
+
+        _pendingSpellcheckParagraph = paragraph;
+
+        if (_pendingSpellcheckParagraph != null)
+        {
+            _paragraphSpellcheckTimer.Stop();
+            _paragraphSpellcheckTimer.Start();
+        }
+    }
+
+    private Paragraph? GetParagraphFromChanges(TextChangedEventArgs e)
+    {
+        if (EditorBox?.Document == null)
+        {
+            return null;
+        }
 
         var documentStart = EditorBox.Document.ContentStart;
         foreach (var change in e.Changes)
@@ -3012,23 +3027,10 @@ public partial class MainWindow : Window
                 documentStart,
                 change.Offset + Math.Max(change.AddedLength, change.RemovedLength));
 
-            AddPendingParagraph(changeStart?.Paragraph);
-            AddPendingParagraph(changeEnd?.Paragraph);
+            return changeStart?.Paragraph ?? changeEnd?.Paragraph;
         }
 
-        if (_pendingSpellcheckParagraphs.Count > 0)
-        {
-            _paragraphSpellcheckTimer.Stop();
-            _paragraphSpellcheckTimer.Start();
-        }
-    }
-
-    private void AddPendingParagraph(Paragraph? paragraph)
-    {
-        if (paragraph != null)
-        {
-            _pendingSpellcheckParagraphs.Add(paragraph);
-        }
+        return null;
     }
 
     private void ProcessPendingSpellcheckParagraphs()
@@ -3040,26 +3042,23 @@ public partial class MainWindow : Window
 
         if (!IsSpellCheckEnabled || !EditorBox.SpellCheck.IsEnabled)
         {
-            _pendingSpellcheckParagraphs.Clear();
+            _pendingSpellcheckParagraph = null;
             return;
         }
 
-        if (_pendingSpellcheckParagraphs.Count == 0)
+        var paragraph = _pendingSpellcheckParagraph;
+        _pendingSpellcheckParagraph = null;
+
+        if (paragraph == null)
         {
             return;
         }
-
-        var paragraphs = _pendingSpellcheckParagraphs.ToArray();
-        _pendingSpellcheckParagraphs.Clear();
 
         _isProcessingSpellcheckParagraphs = true;
         EditorBox.BeginChange();
         try
         {
-            foreach (var paragraph in paragraphs)
-            {
-                ApplySpellCheckToParagraph(paragraph);
-            }
+            ApplySpellCheckToParagraph(paragraph);
         }
         finally
         {
@@ -3073,18 +3072,45 @@ public partial class MainWindow : Window
         var paragraphRange = new TextRange(paragraph.ContentStart, paragraph.ContentEnd);
         var paragraphText = paragraphRange.Text;
 
+        if (ReferenceEquals(paragraph, _lastSpellcheckedParagraph)
+            && string.Equals(paragraphText, _lastSpellcheckedParagraphText, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastSpellcheckedParagraph = paragraph;
+        _lastSpellcheckedParagraphText = paragraphText;
+
         if (string.IsNullOrWhiteSpace(paragraphText))
         {
             return;
         }
 
-        foreach (Match match in TokenRegex.Matches(paragraphText))
+        var length = paragraphText.Length;
+        var index = 0;
+        while (index < length)
         {
-            var token = match.Value;
-            var isEnglish = EnglishTokenRegex.IsMatch(token);
+            while (index < length && char.IsWhiteSpace(paragraphText[index]))
+            {
+                index++;
+            }
 
-            var tokenStart = GetTextPointerAtOffset(paragraph.ContentStart, match.Index);
-            var tokenEnd = GetTextPointerAtOffset(paragraph.ContentStart, match.Index + match.Length);
+            if (index >= length)
+            {
+                break;
+            }
+
+            var tokenStartOffset = index;
+            while (index < length && !char.IsWhiteSpace(paragraphText[index]))
+            {
+                index++;
+            }
+
+            var tokenEndOffset = index;
+            var isEnglish = IsEnglishToken(paragraphText.AsSpan(tokenStartOffset, tokenEndOffset - tokenStartOffset));
+
+            var tokenStart = GetTextPointerAtOffset(paragraph.ContentStart, tokenStartOffset);
+            var tokenEnd = GetTextPointerAtOffset(paragraph.ContentStart, tokenEndOffset);
 
             if (tokenStart == null || tokenEnd == null)
             {
@@ -3106,6 +3132,41 @@ public partial class MainWindow : Window
                 }
             }
         }
+    }
+
+    private static bool IsEnglishToken(ReadOnlySpan<char> token)
+    {
+        if (token.IsEmpty)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < token.Length; i++)
+        {
+            var c = token[i];
+            if (IsAsciiLetter(c))
+            {
+                continue;
+            }
+
+            if (c == '\''
+                && i > 0
+                && i < token.Length - 1
+                && IsAsciiLetter(token[i - 1])
+                && IsAsciiLetter(token[i + 1]))
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsAsciiLetter(char value)
+    {
+        return (value >= 'A' && value <= 'Z') || (value >= 'a' && value <= 'z');
     }
 
     private static TextPointer? GetTextPointerAtOffset(TextPointer start, int offset)

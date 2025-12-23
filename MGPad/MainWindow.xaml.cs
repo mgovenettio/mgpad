@@ -3375,13 +3375,8 @@ public partial class MainWindow : Window
         var addToDictionaryItem = new MenuItem
         {
             Header = "Add to Dictionary",
-            Tag = SpellCheckContextMenuTag
-        };
-        addToDictionaryItem.Click += (_, _) =>
-        {
-            var errorRange = new TextRange(spellingError.Start, spellingError.End);
-            AddWordToCustomDictionary(errorRange.Text);
-            ReloadCustomDictionary();
+            Tag = SpellCheckContextMenuTag,
+            IsEnabled = false
         };
         insertItems.Add(addToDictionaryItem);
 

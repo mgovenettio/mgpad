@@ -129,6 +129,9 @@
                           Header="_Insert Timestamp"
                           Click="InsertTimestampMenuItem_Click"
                           InputGestureText="Alt+Shift+T" />
+                <MenuItem x:Name="WordCountMenuItem"
+                          Header="_Word Count..."
+                          Click="WordCountMenuItem_Click" />
             </MenuItem>
             <MenuItem Header="_Help" Click="HelpMenuItem_Click" />
         </Menu>

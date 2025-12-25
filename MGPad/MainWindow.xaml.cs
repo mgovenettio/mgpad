@@ -107,6 +107,9 @@ public partial class MainWindow : Window
     private static readonly Regex NumberRegex = new(
         "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?",
         RegexOptions.Compiled);
+    private static readonly Regex WordRegex = new(
+        "\\b[^\\s]+\\b",
+        RegexOptions.Compiled);
     private readonly MarkdownPipeline _markdownPipeline;
     private readonly AutosaveService _autosaveService;
     private Guid _untitledDocumentId = Guid.NewGuid();
@@ -889,6 +892,26 @@ public partial class MainWindow : Window
         return range.Text ?? string.Empty;
     }
 
+    private static string NormalizeTextForCounting(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        string normalized = text.Replace("\r\n", "\n").Replace("\r", "\n");
+        return normalized.TrimEnd('\n');
+    }
+
+    private static (int wordCount, int charCount) CountWordsAndCharacters(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return (0, 0);
+
+        int wordCount = WordRegex.Matches(text).Count;
+        int charCount = text.Length;
+
+        return (wordCount, charCount);
+    }
+
     private void ScheduleMarkdownPreviewUpdate()
     {
         if (!_isMarkdownMode)
@@ -1507,6 +1530,27 @@ public partial class MainWindow : Window
     private void InsertTimestampMenuItem_Click(object sender, RoutedEventArgs e)
     {
         InsertTimestampAtCaret();
+    }
+
+    private void WordCountMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        string selectionText = EditorBox?.Selection.Text ?? string.Empty;
+        string documentText = GetEditorPlainText();
+
+        string normalizedSelection = NormalizeTextForCounting(selectionText);
+        string normalizedDocument = NormalizeTextForCounting(documentText);
+
+        var (selectionWordCount, selectionCharCount) = string.IsNullOrEmpty(selectionText)
+            ? (0, 0)
+            : CountWordsAndCharacters(normalizedSelection);
+
+        var (documentWordCount, documentCharCount) = CountWordsAndCharacters(normalizedDocument);
+
+        string message =
+            $"Selection: {selectionWordCount} words, {selectionCharCount} characters\n" +
+            $"Document: {documentWordCount} words, {documentCharCount} characters";
+
+        MessageBox.Show(this, message, "Word count", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void ToggleInputLanguage()

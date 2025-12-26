@@ -1681,7 +1681,7 @@ public partial class MainWindow : Window
             $"Selection: {selectionWordCount} words, {selectionCharCount} characters\n" +
             $"Document: {documentWordCount} words, {documentCharCount} characters";
 
-        MessageBox.Show(this, message, "Word count", MessageBoxButton.OK, MessageBoxImage.Information);
+        System.Windows.MessageBox.Show(this, message, "Word count", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void ToggleInputLanguage()

@@ -26,6 +26,7 @@ using FontFamily = System.Windows.Media.FontFamily;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using Color = System.Windows.Media.Color;
 using Brush = System.Windows.Media.Brush;
+using WpfRichTextBox = System.Windows.Controls.RichTextBox;
 using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace MGPad;
@@ -3365,8 +3366,11 @@ public partial class MainWindow : Window
 
     private bool TryConvertCurrentParagraphToList(bool requireContentAfterPrefix = false, bool createFollowingListItem = false)
     {
-        RichTextBox? editorBox = EditorBox;
-        if (editorBox == null)
+        if (EditorBox is not WpfRichTextBox editorBox)
+            return false;
+
+        FlowDocument? document = editorBox.Document;
+        if (document == null)
             return false;
 
         TextPointer caret = editorBox.CaretPosition;
@@ -3412,9 +3416,9 @@ public partial class MainWindow : Window
 
         List list = CreateList(markerStyle);
 
-        BlockCollection? parentBlocks = GetParentBlockCollection(paragraph.Parent ?? (DependencyObject?)editorBox.Document);
-        if (parentBlocks == null)
-            parentBlocks = (paragraph.Parent as FlowDocument)?.Blocks;
+        BlockCollection? parentBlocks = GetParentBlockCollection(paragraph.Parent ?? document)
+            ?? (paragraph.Parent as FlowDocument)?.Blocks
+            ?? document.Blocks;
 
         if (parentBlocks == null)
             return false;
@@ -3520,10 +3524,10 @@ public partial class MainWindow : Window
 
     private bool HandleEnterInList()
     {
-        if (EditorBox == null)
+        if (EditorBox is not WpfRichTextBox editorBox)
             return false;
 
-        ListItem? currentItem = GetParentListItem(EditorBox.CaretPosition);
+        ListItem? currentItem = GetParentListItem(editorBox.CaretPosition);
         if (currentItem == null)
             return false;
 
@@ -3533,17 +3537,17 @@ public partial class MainWindow : Window
         }
 
         Paragraph newParagraph = new();
-        string trailingText = new TextRange(EditorBox.CaretPosition, currentItem.ContentEnd).Text;
+        string trailingText = new TextRange(editorBox.CaretPosition, currentItem.ContentEnd).Text;
         if (!string.IsNullOrEmpty(trailingText))
         {
             newParagraph.Inlines.Add(new Run(trailingText));
-            new TextRange(EditorBox.CaretPosition, currentItem.ContentEnd).Text = string.Empty;
+            new TextRange(editorBox.CaretPosition, currentItem.ContentEnd).Text = string.Empty;
         }
 
         ListItem newItem = new(newParagraph);
         List parentList = (List)currentItem.Parent;
         parentList.ListItems.InsertAfter(currentItem, newItem);
-        EditorBox.CaretPosition = newParagraph.ContentStart;
+        editorBox.CaretPosition = newParagraph.ContentStart;
         MarkDirty();
         return true;
     }
@@ -3588,15 +3592,17 @@ public partial class MainWindow : Window
 
     private bool ExitListFromItem(ListItem currentItem)
     {
-        RichTextBox? editorBox = EditorBox;
-        if (editorBox == null)
+        if (EditorBox is not WpfRichTextBox editorBox)
+            return false;
+
+        FlowDocument? document = editorBox.Document;
+        if (document == null)
             return false;
 
         List parentList = (List)currentItem.Parent;
-        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent ?? (DependencyObject?)editorBox.Document);
-
-        if (outerBlocks == null)
-            outerBlocks = (parentList.Parent as FlowDocument)?.Blocks;
+        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent ?? document)
+            ?? (parentList.Parent as FlowDocument)?.Blocks
+            ?? document.Blocks;
 
         if (outerBlocks == null)
             return false;
@@ -3648,10 +3654,10 @@ public partial class MainWindow : Window
 
     private bool HandleTabInList(bool isShift)
     {
-        if (EditorBox == null)
+        if (EditorBox is not WpfRichTextBox editorBox)
             return false;
 
-        ListItem? currentItem = GetParentListItem(EditorBox.CaretPosition);
+        ListItem? currentItem = GetParentListItem(editorBox.CaretPosition);
         if (currentItem == null)
             return false;
 
@@ -3673,7 +3679,7 @@ public partial class MainWindow : Window
             if (parentList.ListItems.Count == 0)
                 parentListItem.Blocks.Remove(parentList);
 
-            EditorBox.CaretPosition = currentItem.ContentStart;
+            editorBox.CaretPosition = currentItem.ContentStart;
             MarkDirty();
             return true;
         }
@@ -3695,21 +3701,21 @@ public partial class MainWindow : Window
 
         parentList.ListItems.Remove(currentItem);
         nestedList.ListItems.Add(currentItem);
-        EditorBox.CaretPosition = currentItem.ContentStart;
+        editorBox.CaretPosition = currentItem.ContentStart;
         MarkDirty();
         return true;
     }
 
     private bool HandleBackspaceAtListStart()
     {
-        if (EditorBox == null)
+        if (EditorBox is not WpfRichTextBox editorBox)
             return false;
 
-        ListItem? currentItem = GetParentListItem(EditorBox.CaretPosition);
+        ListItem? currentItem = GetParentListItem(editorBox.CaretPosition);
         if (currentItem == null)
             return false;
 
-        if (EditorBox.CaretPosition.CompareTo(currentItem.ContentStart) > 0)
+        if (editorBox.CaretPosition.CompareTo(currentItem.ContentStart) > 0)
             return false;
 
         return ConvertListItemToParagraph(currentItem);
@@ -3717,15 +3723,17 @@ public partial class MainWindow : Window
 
     private bool ConvertListItemToParagraph(ListItem currentItem)
     {
-        RichTextBox? editorBox = EditorBox;
-        if (editorBox == null)
+        if (EditorBox is not WpfRichTextBox editorBox)
+            return false;
+
+        FlowDocument? document = editorBox.Document;
+        if (document == null)
             return false;
 
         List parentList = (List)currentItem.Parent;
-        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent ?? (DependencyObject?)editorBox.Document);
-
-        if (outerBlocks == null)
-            outerBlocks = (parentList.Parent as FlowDocument)?.Blocks;
+        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent ?? document)
+            ?? (parentList.Parent as FlowDocument)?.Blocks
+            ?? document.Blocks;
 
         if (outerBlocks == null)
             return false;
@@ -3780,11 +3788,11 @@ public partial class MainWindow : Window
     {
         List<Paragraph> paragraphs = new();
 
-        if (EditorBox == null)
+        if (EditorBox is not WpfRichTextBox editorBox)
             return paragraphs;
 
-        TextPointer navigator = EditorBox.Selection.Start;
-        TextPointer selectionEnd = EditorBox.Selection.End;
+        TextPointer navigator = editorBox.Selection.Start;
+        TextPointer selectionEnd = editorBox.Selection.End;
 
         while (navigator != null && navigator.CompareTo(selectionEnd) <= 0)
         {
@@ -3808,11 +3816,11 @@ public partial class MainWindow : Window
     {
         List<ListItem> items = new();
 
-        if (EditorBox == null)
+        if (EditorBox is not WpfRichTextBox editorBox)
             return items;
 
-        TextPointer navigator = EditorBox.Selection.Start;
-        TextPointer selectionEnd = EditorBox.Selection.End;
+        TextPointer navigator = editorBox.Selection.Start;
+        TextPointer selectionEnd = editorBox.Selection.End;
 
         while (navigator != null && navigator.CompareTo(selectionEnd) <= 0)
         {
@@ -3834,8 +3842,11 @@ public partial class MainWindow : Window
 
     private void ApplyListStyle(TextMarkerStyle style)
     {
-        RichTextBox? editorBox = EditorBox;
-        if (editorBox == null || !CanFormat())
+        if (EditorBox is not WpfRichTextBox editorBox || !CanFormat())
+            return;
+
+        FlowDocument? document = editorBox.Document;
+        if (document == null)
             return;
 
         List<Paragraph> paragraphs = GetParagraphsFromSelection();
@@ -3856,8 +3867,9 @@ public partial class MainWindow : Window
         }
 
         Paragraph firstParagraph = paragraphs[0];
-        BlockCollection? parentBlocks = GetParentBlockCollection(firstParagraph.Parent ?? (DependencyObject?)editorBox.Document)
-            ?? (firstParagraph.Parent as FlowDocument)?.Blocks;
+        BlockCollection? parentBlocks = GetParentBlockCollection(firstParagraph.Parent ?? document)
+            ?? (firstParagraph.Parent as FlowDocument)?.Blocks
+            ?? document.Blocks;
 
         if (parentBlocks == null)
             return;

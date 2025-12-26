@@ -85,8 +85,9 @@ public partial class MainWindow : Window
     private const double ZoomStep = 0.1;
     private const double MinZoom = 0.5;
     private const double MaxZoom = 3.0;
-    private const double DefaultZoom = 2.0;
+    private const double DefaultZoom = 1.0;
     private double _zoomLevel = DefaultZoom;
+    private double _lastAppliedZoom = 1.0;
     private const double MinFontSize = 6;
     private const double MaxFontSize = 96;
     private const int MaxRecentDocuments = 10;
@@ -470,10 +471,127 @@ public partial class MainWindow : Window
         UpdateMarkdownPreview();
     }
 
+    private void ResetZoomStateForDocument()
+    {
+        _lastAppliedZoom = 1.0;
+        if (EditorBox != null)
+            EditorBox.LayoutTransform = Transform.Identity;
+    }
+
+    private static void ScaleInlineFontSize(Inline inline, double scaleRatio)
+    {
+        object fontSizeValue = inline.ReadLocalValue(TextElement.FontSizeProperty);
+        if (fontSizeValue is double inlineSize)
+            inline.SetValue(TextElement.FontSizeProperty, inlineSize * scaleRatio);
+
+        if (inline is Span span)
+        {
+            foreach (Inline child in span.Inlines)
+            {
+                ScaleInlineFontSize(child, scaleRatio);
+            }
+        }
+    }
+
+    private void ScaleTextElementFontSize(TextElement element, double scaleRatio)
+    {
+        object fontSizeValue = element.ReadLocalValue(TextElement.FontSizeProperty);
+        if (fontSizeValue is double elementSize)
+            element.SetValue(TextElement.FontSizeProperty, elementSize * scaleRatio);
+
+        switch (element)
+        {
+            case Paragraph paragraph:
+                foreach (Inline inline in paragraph.Inlines)
+                {
+                    ScaleInlineFontSize(inline, scaleRatio);
+                }
+                break;
+            case Section section:
+                foreach (Block child in section.Blocks)
+                {
+                    ScaleTextElementFontSize(child, scaleRatio);
+                }
+                break;
+            case List list:
+                foreach (ListItem item in list.ListItems)
+                {
+                    foreach (Block child in item.Blocks)
+                    {
+                        ScaleTextElementFontSize(child, scaleRatio);
+                    }
+                }
+                break;
+            case Table table:
+                foreach (TableRowGroup group in table.RowGroups)
+                {
+                    foreach (TableRow row in group.Rows)
+                    {
+                        foreach (TableCell cell in row.Cells)
+                        {
+                            foreach (Block child in cell.Blocks)
+                            {
+                                ScaleTextElementFontSize(child, scaleRatio);
+                            }
+                        }
+                    }
+                }
+                break;
+            case Figure figure:
+                foreach (Block child in figure.Blocks)
+                {
+                    ScaleTextElementFontSize(child, scaleRatio);
+                }
+                break;
+            case Floater floater:
+                foreach (Block child in floater.Blocks)
+                {
+                    ScaleTextElementFontSize(child, scaleRatio);
+                }
+                break;
+        }
+    }
+
+    private static Thickness ScaleThickness(Thickness thickness, double scaleRatio)
+    {
+        return new Thickness(
+            thickness.Left * scaleRatio,
+            thickness.Top * scaleRatio,
+            thickness.Right * scaleRatio,
+            thickness.Bottom * scaleRatio);
+    }
+
+    private void ScaleDocumentLayout(FlowDocument document, double scaleRatio)
+    {
+        document.FontSize *= scaleRatio;
+
+        if (!double.IsNaN(document.PageWidth) && !double.IsInfinity(document.PageWidth))
+        {
+            document.PageWidth *= scaleRatio;
+        }
+
+        document.PagePadding = ScaleThickness(document.PagePadding, scaleRatio);
+
+        foreach (Block block in document.Blocks)
+        {
+            ScaleTextElementFontSize(block, scaleRatio);
+        }
+    }
+
     private void ApplyZoom()
     {
         if (EditorBox != null)
-            EditorBox.LayoutTransform = new ScaleTransform(_zoomLevel, _zoomLevel);
+            EditorBox.LayoutTransform = Transform.Identity;
+
+        if (EditorBox?.Document != null)
+        {
+            double scaleRatio = _zoomLevel / _lastAppliedZoom;
+            if (Math.Abs(scaleRatio - 1.0) > 0.0001)
+            {
+                ScaleDocumentLayout(EditorBox.Document, scaleRatio);
+                _lastAppliedZoom = _zoomLevel;
+            }
+        }
 
         if (ZoomPercentageTextBlock != null)
             ZoomPercentageTextBlock.Text = $"{Math.Round(_zoomLevel * 100)}%";
@@ -560,6 +678,8 @@ public partial class MainWindow : Window
         var range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
         range.Text = text;
         ApplyTheme();
+        ResetZoomStateForDocument();
+        ApplyZoom();
     }
 
     private void LoadRtfIntoEditor(string path)
@@ -573,6 +693,8 @@ public partial class MainWindow : Window
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
         range.Load(stream, System.Windows.DataFormats.Rtf);
         ApplyTheme();
+        ResetZoomStateForDocument();
+        ApplyZoom();
     }
 
     private sealed record OdtTextStyle(
@@ -635,6 +757,8 @@ public partial class MainWindow : Window
 
             EditorBox.Document = document;
             ApplyTheme();
+            ResetZoomStateForDocument();
+            ApplyZoom();
         }
         catch
         {
@@ -2629,6 +2753,8 @@ public partial class MainWindow : Window
         MarkClean();
         UpdateFormattingControls();
         ApplyTheme();
+        ResetZoomStateForDocument();
+        ApplyZoom();
         UpdateMarkdownPreview();
     }
 

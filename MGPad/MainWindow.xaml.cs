@@ -105,6 +105,12 @@ public partial class MainWindow : Window
     private WpfTextBox? _fontSizeEditableTextBox;
     private FontFamily? _lastKnownFontFamily;
     private double? _lastKnownFontSize;
+    private static double PointsToDips(double points) => points * 96.0 / 72.0;
+
+    private static double DipsToPoints(double dips) => dips * 72.0 / 96.0;
+
+    private static double ClampFontSizeInPoints(double fontSize) =>
+        Math.Min(MaxFontSize, Math.Max(MinFontSize, fontSize));
     private static readonly Regex NumberRegex = new(
         "[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?",
         RegexOptions.Compiled);
@@ -649,7 +655,8 @@ public partial class MainWindow : Window
     {
         return new FlowDocument
         {
-            FontFamily = GetBodyFontFamily()
+            FontFamily = GetBodyFontFamily(),
+            FontSize = PointsToDips(12)
         };
     }
 
@@ -4034,10 +4041,10 @@ public partial class MainWindow : Window
                 }
             }
 
-            double? selectionSize = sizeValue is double size ? size : null;
+            double? selectionSize = sizeValue is double size ? DipsToPoints(size) : null;
             if (selectionSize != null)
             {
-                double clampedSize = Math.Min(MaxFontSize, Math.Max(MinFontSize, selectionSize.Value));
+                double clampedSize = ClampFontSizeInPoints(selectionSize.Value);
                 FontSizeComboBox.Text = clampedSize.ToString("0.#");
                 var closest = _defaultFontSizes.FirstOrDefault(s => Math.Abs(s - clampedSize) < 0.1);
                 FontSizeComboBox.SelectedItem = closest > 0 ? closest : null;
@@ -4046,12 +4053,12 @@ public partial class MainWindow : Window
             else
             {
                 double? fallbackSize = isSelectionEmpty
-                    ? _lastKnownFontSize ?? EditorBox.Document?.FontSize
+                    ? _lastKnownFontSize ?? (EditorBox.Document?.FontSize is double docSize ? DipsToPoints(docSize) : null)
                     : null;
 
                 if (fallbackSize != null)
                 {
-                    double clampedSize = Math.Min(MaxFontSize, Math.Max(MinFontSize, fallbackSize.Value));
+                    double clampedSize = ClampFontSizeInPoints(fallbackSize.Value);
                     _lastKnownFontSize ??= clampedSize;
                     FontSizeComboBox.Text = clampedSize.ToString("0.#");
                     var closest = _defaultFontSizes.FirstOrDefault(s => Math.Abs(s - clampedSize) < 0.1);
@@ -4096,17 +4103,17 @@ public partial class MainWindow : Window
         if (EditorBox == null || !CanFormat())
             return;
 
-        double clampedSize = Math.Min(MaxFontSize, Math.Max(MinFontSize, fontSize));
+        double clampedSize = ClampFontSizeInPoints(fontSize);
         if (ShouldUpdateDocumentFormattingDefault(Inline.FontSizeProperty))
         {
             if (EditorBox.Document != null)
             {
-                EditorBox.Document.FontSize = clampedSize;
+                EditorBox.Document.FontSize = PointsToDips(clampedSize);
             }
         }
         else
         {
-            ApplyPropertyToSelectionOrCaret(Inline.FontSizeProperty, clampedSize);
+            ApplyPropertyToSelectionOrCaret(Inline.FontSizeProperty, PointsToDips(clampedSize));
         }
 
         _lastKnownFontSize = clampedSize;
@@ -4185,7 +4192,7 @@ public partial class MainWindow : Window
 
             if (fontSize != null)
             {
-                double clampedSize = Math.Min(MaxFontSize, Math.Max(MinFontSize, fontSize.Value));
+                double clampedSize = ClampFontSizeInPoints(fontSize.Value);
                 _lastKnownFontSize = clampedSize;
                 FontSizeComboBox.Text = clampedSize.ToString("0.#");
                 var closest = _defaultFontSizes.FirstOrDefault(s => Math.Abs(s - clampedSize) < 0.1);
@@ -4338,7 +4345,7 @@ public partial class MainWindow : Window
         if (double.TryParse(FontSizeComboBox.Text, out double size))
         {
             ApplyFontSize(size);
-            FontSizeComboBox.Text = Math.Min(MaxFontSize, Math.Max(MinFontSize, size)).ToString("0.#");
+            FontSizeComboBox.Text = ClampFontSizeInPoints(size).ToString("0.#");
             MarkDirty();
         }
         else

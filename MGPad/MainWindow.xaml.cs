@@ -3365,10 +3365,11 @@ public partial class MainWindow : Window
 
     private bool TryConvertCurrentParagraphToList(bool requireContentAfterPrefix = false, bool createFollowingListItem = false)
     {
-        if (EditorBox == null)
+        RichTextBox? editorBox = EditorBox;
+        if (editorBox == null)
             return false;
 
-        TextPointer caret = EditorBox.CaretPosition;
+        TextPointer caret = editorBox.CaretPosition;
         Paragraph? paragraph = GetCurrentParagraph(caret);
 
         if (paragraph == null)
@@ -3411,7 +3412,7 @@ public partial class MainWindow : Window
 
         List list = CreateList(markerStyle);
 
-        BlockCollection? parentBlocks = GetParentBlockCollection(paragraph.Parent ?? (DependencyObject?)EditorBox?.Document);
+        BlockCollection? parentBlocks = GetParentBlockCollection(paragraph.Parent ?? (DependencyObject?)editorBox.Document);
         if (parentBlocks == null)
             parentBlocks = (paragraph.Parent as FlowDocument)?.Blocks;
 
@@ -3427,7 +3428,7 @@ public partial class MainWindow : Window
         {
             ListItem newItem = new(new Paragraph());
             list.ListItems.Add(newItem);
-            EditorBox.CaretPosition = newItem.ContentStart;
+            editorBox.CaretPosition = newItem.ContentStart;
         }
         else
         {
@@ -3435,7 +3436,7 @@ public partial class MainWindow : Window
                 ? caretOffset - markerOffset
                 : 0;
             TextPointer? adjustedCaret = GetTextPointerAtTextOffset(paragraph.ContentStart, adjustedOffset);
-            EditorBox.CaretPosition = adjustedCaret ?? listItem.ContentStart;
+            editorBox.CaretPosition = adjustedCaret ?? listItem.ContentStart;
         }
         MarkDirty();
         return true;
@@ -3587,8 +3588,12 @@ public partial class MainWindow : Window
 
     private bool ExitListFromItem(ListItem currentItem)
     {
+        RichTextBox? editorBox = EditorBox;
+        if (editorBox == null)
+            return false;
+
         List parentList = (List)currentItem.Parent;
-        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent ?? (DependencyObject?)EditorBox?.Document);
+        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent ?? (DependencyObject?)editorBox.Document);
 
         if (outerBlocks == null)
             outerBlocks = (parentList.Parent as FlowDocument)?.Blocks;
@@ -3636,7 +3641,7 @@ public partial class MainWindow : Window
             outerBlocks.InsertAfter(replacementParagraph, tailList);
         }
 
-        EditorBox.CaretPosition = replacementParagraph.ContentStart;
+        editorBox.CaretPosition = replacementParagraph.ContentStart;
         MarkDirty();
         return true;
     }
@@ -3712,8 +3717,12 @@ public partial class MainWindow : Window
 
     private bool ConvertListItemToParagraph(ListItem currentItem)
     {
+        RichTextBox? editorBox = EditorBox;
+        if (editorBox == null)
+            return false;
+
         List parentList = (List)currentItem.Parent;
-        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent ?? (DependencyObject?)EditorBox?.Document);
+        BlockCollection? outerBlocks = GetParentBlockCollection(parentList.Parent ?? (DependencyObject?)editorBox.Document);
 
         if (outerBlocks == null)
             outerBlocks = (parentList.Parent as FlowDocument)?.Blocks;
@@ -3762,7 +3771,7 @@ public partial class MainWindow : Window
             outerBlocks.InsertAfter(paragraph, tailList);
         }
 
-        EditorBox.CaretPosition = paragraph.ContentStart;
+        editorBox.CaretPosition = paragraph.ContentStart;
         MarkDirty();
         return true;
     }
@@ -3825,7 +3834,8 @@ public partial class MainWindow : Window
 
     private void ApplyListStyle(TextMarkerStyle style)
     {
-        if (EditorBox == null || !CanFormat())
+        RichTextBox? editorBox = EditorBox;
+        if (editorBox == null || !CanFormat())
             return;
 
         List<Paragraph> paragraphs = GetParagraphsFromSelection();
@@ -3846,7 +3856,7 @@ public partial class MainWindow : Window
         }
 
         Paragraph firstParagraph = paragraphs[0];
-        BlockCollection? parentBlocks = GetParentBlockCollection(firstParagraph.Parent ?? (DependencyObject?)EditorBox?.Document)
+        BlockCollection? parentBlocks = GetParentBlockCollection(firstParagraph.Parent ?? (DependencyObject?)editorBox.Document)
             ?? (firstParagraph.Parent as FlowDocument)?.Blocks;
 
         if (parentBlocks == null)
@@ -3862,7 +3872,7 @@ public partial class MainWindow : Window
             list.ListItems.Add(new ListItem(paragraph));
         }
 
-        EditorBox.CaretPosition = list.ListItems.Last().ContentStart;
+        editorBox.CaretPosition = list.ListItems.Last().ContentStart;
         MarkDirty();
     }
 

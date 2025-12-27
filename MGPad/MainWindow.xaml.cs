@@ -125,11 +125,12 @@ public partial class MainWindow : Window
     private bool _isRecoveredDocument;
     private readonly List<string> _pendingRecoveryAutosavePaths = new();
     // Keep list indentation uniform across bullet, numbered, and lettered markers so the
-    // content column lines up regardless of the marker glyph width. The marker offset is
-    // kept inside the list bounds so bullets are visible within the editor border padding.
-    private static readonly Thickness ListIndentationMargin = new(26, 0, 0, 0);
-    private const double ListIndentationMarkerOffset = 10;
-    private static readonly Thickness ListIndentationPadding = new(0);
+    // content column lines up regardless of the marker glyph width. Padding creates a hanging
+    // indent that separates the marker from the text block while keeping the marker visible
+    // within the editor border padding.
+    private static readonly Thickness ListIndentationMargin = new(16, 0, 0, 0);
+    private const double ListIndentationMarkerOffset = 12;
+    private static readonly Thickness ListIndentationPadding = new(20, 0, 0, 0);
     private static readonly object SpellCheckContextMenuTag = new();
     private static readonly TimeSpan AutosaveInterval = TimeSpan.FromSeconds(60);
 
@@ -3569,10 +3570,6 @@ public partial class MainWindow : Window
 
     private static bool IsListItemEmpty(ListItem currentItem)
     {
-        string itemText = new TextRange(currentItem.ContentStart, currentItem.ContentEnd).Text;
-        if (!string.IsNullOrWhiteSpace(itemText))
-            return false;
-
         List<Block> blocks = currentItem.Blocks.ToList();
         if (blocks.Count != 1 || blocks[0] is not Paragraph paragraph)
             return false;

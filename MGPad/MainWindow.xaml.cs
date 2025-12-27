@@ -1205,6 +1205,19 @@ public partial class MainWindow : Window
     private void InitializeDocumentState()
     {
         _isDirty = false;
+        _isLoadingDocument = true;
+        try
+        {
+            if (EditorBox != null)
+            {
+                EditorBox.Document = CreateStyledDocument();
+            }
+        }
+        finally
+        {
+            _isLoadingDocument = false;
+        }
+
         SetCurrentFile(null, DocumentType.RichText);
         MarkClean();
     }

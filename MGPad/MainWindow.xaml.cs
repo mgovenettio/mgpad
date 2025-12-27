@@ -86,9 +86,10 @@ public partial class MainWindow : Window
     private const double ZoomStep = 0.1;
     private const double MinZoom = 0.5;
     private const double MaxZoom = 3.0;
-    private const double DefaultZoom = 1.0;
+    private const double DefaultZoom = 2.0;
+    private const double BaseZoom = 1.0;
     private double _zoomLevel = DefaultZoom;
-    private double _lastAppliedZoom = 1.0;
+    private double _lastAppliedZoom = BaseZoom;
     private const double MinFontSize = 6;
     private const double MaxFontSize = 96;
     private const int MaxRecentDocuments = 10;
@@ -480,7 +481,8 @@ public partial class MainWindow : Window
 
     private void ResetZoomStateForDocument()
     {
-        _lastAppliedZoom = 1.0;
+        _zoomLevel = DefaultZoom;
+        _lastAppliedZoom = BaseZoom;
         if (EditorBox != null)
             EditorBox.LayoutTransform = Transform.Identity;
     }

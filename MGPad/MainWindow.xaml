@@ -387,7 +387,7 @@
                             Margin="0,0,4,0"
                             Click="ZoomOutButton_Click" />
                     <TextBlock x:Name="ZoomPercentageTextBlock"
-                               Text="100%"
+                               Text="200%"
                                VerticalAlignment="Center" />
                     <Button x:Name="ZoomInButton"
                             Content="+"
